@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnpm-store/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+.next/
+**/dist/
+**/build/
+**/out/
+**/.next/
+
+# Coverage
+coverage/
+**/coverage/
+
+# Caches
+.cache/
+.turbo/
+.vite/
+**/.cache/
+**/.turbo/
+**/.vite/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# PostgreSQL backups / dumps
+*.dump
+*.backup
+*.sql.gz
+*.psql
+
+# Expo / React Native later
+.expo/
+.expo-shared/
+**/.expo/
+**/.expo-shared/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
