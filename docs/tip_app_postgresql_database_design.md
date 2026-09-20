@@ -840,6 +840,13 @@ FROM slips
 WHERE publication_status = 'published';
 ```
 
+That aggregate is implemented today in
+`apps/web/src/repositories/performance-repository.js` and exposed as
+`GET /api/v1/performance`. Only published slips with `result IN ('won', 'lost')`
+are counted, so drafts, hidden slips, pending slips and void slips stay out of
+the financial metrics. See
+[`slip_publication_and_performance.md`](./slip_publication_and_performance.md).
+
 Your follower dashboard could then show:
 
 ```text

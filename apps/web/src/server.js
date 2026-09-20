@@ -1,7 +1,7 @@
 import express from 'express';
 import 'dotenv/config';
 import pool from './db/postgres.js';
-import { getSlip } from './controllers/slip-controller.js';
+import performanceRoutes from './routes/api/performance-routes.js';
 import settlementRoutes from './routes/api/settlement-routes.js';
 import slipRoutes from './routes/api/slip-routes.js';
 import {
@@ -24,8 +24,8 @@ app.get('/', (req, res) => {
     res.send('Pelosi server is running');
 });
 
-app.get('/test/slip/:id', getSlip);
 app.use('/api/v1/slips', slipRoutes);
+app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/settlement', settlementRoutes);
 app.get('/api/trueodds/matches/search', searchTrueOddsMatches);
 app.get('/api/trueodds/matches/:trueOddsId/markets', getTrueOddsMarkets);

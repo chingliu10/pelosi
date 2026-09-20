@@ -70,25 +70,30 @@ export async function listSlips(filters = {}, db = pool) {
     const result = await db.query(
         `
         SELECT
-            id,
-            title,
-            slip_date,
-            total_odds,
-            stake_units,
-            result,
-            return_units,
-            profit_units,
-            creation_type,
-            publication_status,
-            published_at,
-            settled_at,
-            created_at,
-            updated_at
-        FROM slips
-        WHERE ($1::varchar IS NULL OR result = $1)
-          AND ($2::varchar IS NULL OR publication_status = $2)
-          AND ($3::varchar IS NULL OR creation_type = $3)
-        ORDER BY slip_date DESC, id DESC
+            s.id,
+            s.title,
+            s.slip_date,
+            s.total_odds,
+            s.stake_units,
+            s.result,
+            s.return_units,
+            s.profit_units,
+            s.creation_type,
+            s.publication_status,
+            s.published_at,
+            s.settled_at,
+            s.created_at,
+            s.updated_at,
+            (
+                SELECT COUNT(*)
+                FROM slip_tips st
+                WHERE st.slip_id = s.id
+            ) AS leg_count
+        FROM slips s
+        WHERE ($1::varchar IS NULL OR s.result = $1)
+          AND ($2::varchar IS NULL OR s.publication_status = $2)
+          AND ($3::varchar IS NULL OR s.creation_type = $3)
+        ORDER BY s.slip_date DESC, s.id DESC
         LIMIT $4
         OFFSET $5
         `,
@@ -194,6 +199,40 @@ export async function publishSlip(id, db = pool) {
         SET
             publication_status = 'published',
             published_at = COALESCE(published_at, NOW())
+        WHERE id = $1
+        RETURNING
+            id,
+            title,
+            slip_date,
+            total_odds,
+            stake_units,
+            result,
+            return_units,
+            profit_units,
+            creation_type,
+            publication_status,
+            published_at,
+            settled_at,
+            created_at,
+            updated_at
+        `,
+        [id]
+    );
+
+    return result.rows[0] ?? null;
+}
+
+/**
+ * Hiding a slip is a publication action only: it never deletes the slip or its
+ * tips, never touches result/money fields and keeps published_at as the
+ * historical record of when the slip was originally published.
+ */
+export async function hideSlip(id, db = pool) {
+    const result = await db.query(
+        `
+        UPDATE slips
+        SET
+            publication_status = 'hidden'
         WHERE id = $1
         RETURNING
             id,

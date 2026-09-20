@@ -1,6 +1,9 @@
 import pool from '../db/postgres.js';
 import { findDataSourceByCode } from '../repositories/data-source-repository.js';
-import { findMatchBySourceMatchId } from '../repositories/match-repository.js';
+import {
+    findMatchBySourceMatchId,
+    updateMatchScoreAndStatus
+} from '../repositories/match-repository.js';
 import {
     findPendingTipsByMatchId,
     updateTipResult
@@ -11,73 +14,113 @@ import {
     updateSlipResult
 } from '../repositories/slip-repository.js';
 import { getTrueOddsMatch } from '../integrations/trueodds-client.js';
+import {
+    CLASSIFICATION_STATUSES,
+    classifyTrueOddsMatch,
+    decideTipSettlement,
+    evaluateSlipSettlement
+} from './settlement-rules.js';
 
-const safeResultStatuses = new Set(['Ended', 'manual']);
-const safeFinalResults = new Set(['H', 'D', 'A']);
-const notReadyStatuses = new Set(['scheduled', 'live', 'postponed', 'cancelled']);
-const manualReviewResultStatuses = new Set(['AP', 'AET', 'H1', 'Not Start']);
+/**
+ * TrueOdds exact match details are the primary settlement source.
+ * `matches.source_match_id` maps directly to this endpoint.
+ */
+const trueOddsSettlementEndpoint = '/api/v1/matches/:matchId';
 
+const responseStatusByClassification = {
+    [CLASSIFICATION_STATUSES.SAFE_FINAL]: 'safe_final',
+    [CLASSIFICATION_STATUSES.MANUAL_REVIEW]: 'manual_review',
+    [CLASSIFICATION_STATUSES.NOT_READY]: 'not_ready',
+    [CLASSIFICATION_STATUSES.VOID]: 'void'
+};
+
+/**
+ * Settle every eligible pending Pelosi tip that belongs to one TrueOdds match.
+ *
+ * Flow (see docs/settlement.md):
+ *   validate sourceMatchId
+ *   -> one TrueOdds exact-match request
+ *   -> classify the result
+ *   -> if no DB write is needed, return
+ *   -> BEGIN, snapshot local match, update tips, recalculate slips, COMMIT
+ */
 export async function settleMatchFromTrueOdds(sourceMatchId) {
-    if (!sourceMatchId) {
-        throw new Error('sourceMatchId is required');
-    }
+    const normalizedSourceMatchId = normalizeSourceMatchId(sourceMatchId);
 
     const source = await findDataSourceByCode('trueodds');
     if (!source) {
         throw new Error('trueodds data source does not exist');
     }
 
-    const match = await findMatchBySourceMatchId(source.id, sourceMatchId);
+    const match = await findMatchBySourceMatchId(source.id, normalizedSourceMatchId);
     if (!match) {
-        const error = new Error(`Pelosi match not found for source_match_id ${sourceMatchId}`);
+        const error = new Error(`Pelosi match not found for source_match_id ${normalizedSourceMatchId}`);
         error.status = 404;
         throw error;
     }
 
     const pendingTips = await findPendingTipsByMatchId(match.id);
-    const trueOddsResponse = await getTrueOddsMatch(sourceMatchId);
-    const trueOddsMatch = trueOddsResponse.match;
+
+    // The external HTTP call always happens before the PostgreSQL transaction
+    // is opened, and exactly one request is made per source match id.
+    const trueOddsResponse = await getTrueOddsMatch(normalizedSourceMatchId);
+    const trueOddsMatch = trueOddsResponse?.match ?? null;
+
+    assertTrueOddsMatchIdentity(trueOddsMatch, normalizedSourceMatchId);
+
     const classification = classifyTrueOddsMatch(trueOddsMatch);
-    const baseResult = {
-        sourceMatchId: String(sourceMatchId),
-        pelosiMatchId: Number(match.id),
-        trueOddsMatch: summarizeTrueOddsMatch(trueOddsMatch),
-        classification: classification.status,
-        reason: classification.reason,
-        pendingTipsFound: pendingTips.length,
-        tipsChanged: 0,
-        tipsSkipped: [],
-        slipsUpdated: [],
-        slipsRequiringManualReview: []
-    };
-
-    if (pendingTips.length === 0) {
-        return baseResult;
-    }
-
-    if (classification.status === 'NOT_READY' || classification.status === 'MANUAL_REVIEW') {
-        return {
-            ...baseResult,
-            tipsSkipped: pendingTips.map((tip) => skippedTip(tip, classification.reason))
-        };
-    }
-
-    const settlementDecisions = pendingTips.map((tip) => decideTipSettlement(tip, classification));
+    const notes = [];
+    const matchPlan = planLocalMatchSnapshot(match, classification);
+    const settlementDecisions = buildSettlementDecisions(pendingTips, classification);
     const changedDecisions = settlementDecisions.filter((decision) => decision.result);
 
-    if (changedDecisions.length === 0) {
-        return {
-            ...baseResult,
-            tipsSkipped: settlementDecisions
-                .filter((decision) => !decision.result)
-                .map((decision) => skippedTip(decision.tip, decision.reason))
-        };
+    if (matchPlan.note) {
+        notes.push(matchPlan.note);
+    }
+
+    const baseResult = {
+        sourceMatchId: normalizedSourceMatchId,
+        pelosiMatchId: Number(match.id),
+        status: responseStatusByClassification[classification.status] ?? 'manual_review',
+        classification: classification.status,
+        reason: classification.reason,
+        trueOddsEndpoint: trueOddsSettlementEndpoint,
+        trueOddsMatch: summarizeTrueOddsMatch(trueOddsMatch),
+        pendingTipsFound: pendingTips.length,
+        tipsChanged: 0,
+        tipsUpdated: [],
+        tipsSkipped: settlementDecisions
+            .filter((decision) => !decision.result)
+            .map((decision) => skippedTip(decision.tip, decision.reason)),
+        localMatchUpdated: false,
+        localMatch: null,
+        slipsUpdated: [],
+        slipsRequiringManualReview: [],
+        notes
+    };
+
+    if (changedDecisions.length === 0 && !matchPlan.needed) {
+        return baseResult;
     }
 
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
+
+        let updatedMatch = null;
+
+        if (matchPlan.needed) {
+            updatedMatch = await updateMatchScoreAndStatus(
+                match.id,
+                {
+                    homeScore: matchPlan.homeScore,
+                    awayScore: matchPlan.awayScore,
+                    status: matchPlan.status
+                },
+                client
+            );
+        }
 
         const updatedTips = [];
 
@@ -101,11 +144,11 @@ export async function settleMatchFromTrueOdds(sourceMatchId) {
                 result: tip.result,
                 marketCode: tip.market_code,
                 selectionCode: tip.selection_code,
+                odds: Number(tip.odds),
                 settledAt: tip.settled_at
             })),
-            tipsSkipped: settlementDecisions
-                .filter((decision) => !decision.result)
-                .map((decision) => skippedTip(decision.tip, decision.reason)),
+            localMatchUpdated: updatedMatch !== null,
+            localMatch: updatedMatch === null ? null : toLocalMatchSummary(updatedMatch),
             slipsUpdated: slipSettlements.updated,
             slipsRequiringManualReview: slipSettlements.manualReview
         };
@@ -117,168 +160,92 @@ export async function settleMatchFromTrueOdds(sourceMatchId) {
     }
 }
 
-function classifyTrueOddsMatch(match) {
-    if (!match) {
-        return { status: 'NOT_READY', reason: 'TrueOdds match detail was not returned' };
+function normalizeSourceMatchId(sourceMatchId) {
+    if (sourceMatchId === undefined || sourceMatchId === null) {
+        throw new Error('sourceMatchId is required');
     }
 
-    if (match.resultStatus === 'void') {
-        return { status: 'VOID', reason: 'TrueOdds resultStatus void' };
+    const normalized = String(sourceMatchId).trim();
+
+    if (!normalized) {
+        throw new Error('sourceMatchId is required');
     }
 
-    if (notReadyStatuses.has(match.status)) {
-        return { status: 'NOT_READY', reason: `TrueOdds status ${match.status} is not final` };
+    return normalized;
+}
+
+/**
+ * Guard against settling a Pelosi match with a TrueOdds payload that is not
+ * the match we asked for. The endpoint accepts either the Sportradar event id
+ * or the TrueOdds id, so both are accepted as a match.
+ */
+function assertTrueOddsMatchIdentity(trueOddsMatch, sourceMatchId) {
+    if (!trueOddsMatch) {
+        return;
     }
 
-    if (match.resultStatus === null || match.resultStatus === undefined) {
-        return { status: 'NOT_READY', reason: 'TrueOdds resultStatus is not available yet' };
+    const identifiers = [trueOddsMatch.trueOddsId, trueOddsMatch.id]
+        .filter((value) => value !== undefined && value !== null && value !== '')
+        .map(String);
+
+    if (identifiers.length === 0) {
+        const error = new Error('TrueOdds match detail did not include a match identifier');
+        error.status = 502;
+        throw error;
     }
 
-    if (manualReviewResultStatuses.has(match.resultStatus)) {
+    if (identifiers.includes(sourceMatchId)) {
+        return;
+    }
+
+    const error = new Error(
+        `TrueOdds returned a different match (${identifiers.join(', ')}) for source_match_id ${sourceMatchId}`
+    );
+    error.status = 502;
+    throw error;
+}
+
+function buildSettlementDecisions(pendingTips, classification) {
+    const canDecide = classification.status === CLASSIFICATION_STATUSES.SAFE_FINAL
+        || classification.status === CLASSIFICATION_STATUSES.VOID;
+
+    if (!canDecide) {
+        return pendingTips.map((tip) => ({ tip, result: null, reason: classification.reason }));
+    }
+
+    return pendingTips.map((tip) => decideTipSettlement(tip, classification));
+}
+
+/**
+ * Pelosi keeps its own historical result snapshot in `matches`, so a
+ * SAFE_FINAL result is written in the same transaction as the tip updates.
+ * Non-safe results never overwrite the local match with a misleading final.
+ */
+function planLocalMatchSnapshot(match, classification) {
+    if (classification.status === CLASSIFICATION_STATUSES.VOID) {
         return {
-            status: 'MANUAL_REVIEW',
-            reason: `TrueOdds resultStatus ${match.resultStatus} is not automatically settled`
+            needed: false,
+            note: 'Pelosi matches.status has no unambiguous void/abandoned value, so the local match row was left unchanged and the match needs manual void handling'
         };
     }
 
-    if (match.status !== 'finished') {
-        return { status: 'MANUAL_REVIEW', reason: `TrueOdds status ${match.status} is not safely settled` };
-    }
-
-    if (!safeResultStatuses.has(match.resultStatus)) {
+    if (classification.status !== CLASSIFICATION_STATUSES.SAFE_FINAL) {
         return {
-            status: 'MANUAL_REVIEW',
-            reason: `TrueOdds resultStatus ${match.resultStatus} is not supported for automatic settlement`
+            needed: false,
+            note: `Local match snapshot not updated because the TrueOdds result is ${classification.status}`
         };
     }
 
-    if (!safeFinalResults.has(match.finalResult)) {
-        return { status: 'MANUAL_REVIEW', reason: 'TrueOdds finalResult is not supported for automatic settlement' };
-    }
-
-    if (!Number.isFinite(Number(match.score?.home)) || !Number.isFinite(Number(match.score?.away))) {
-        return { status: 'MANUAL_REVIEW', reason: 'TrueOdds score is incomplete' };
-    }
+    const needsUpdate = !sameScore(match.home_score, classification.homeScore)
+        || !sameScore(match.away_score, classification.awayScore)
+        || match.status !== 'finished';
 
     return {
-        status: 'SAFE_FINAL',
-        reason: 'TrueOdds match is safe for automatic settlement',
-        homeScore: Number(match.score.home),
-        awayScore: Number(match.score.away),
-        finalResult: match.finalResult
+        needed: needsUpdate,
+        homeScore: classification.homeScore,
+        awayScore: classification.awayScore,
+        status: 'finished'
     };
-}
-
-function decideTipSettlement(tip, classification) {
-    if (classification.status === 'VOID') {
-        return {
-            tip,
-            result: 'void',
-            reason: classification.reason
-        };
-    }
-
-    const homeScore = classification.homeScore;
-    const awayScore = classification.awayScore;
-    const marketCode = normalizeCode(tip.market_code);
-    const selectionCode = normalizeCode(tip.selection_code);
-
-    if (marketCode === 'MATCH_RESULT') {
-        return settleMatchResult(tip, selectionCode, homeScore, awayScore);
-    }
-
-    if (marketCode === 'DOUBLE_CHANCE') {
-        return settleDoubleChance(tip, selectionCode, homeScore, awayScore);
-    }
-
-    if (marketCode === 'TOTAL_GOALS') {
-        return settleTotalGoals(tip, selectionCode, homeScore, awayScore);
-    }
-
-    if (marketCode === 'BTTS') {
-        return settleBtts(tip, selectionCode, homeScore, awayScore);
-    }
-
-    return {
-        tip,
-        result: null,
-        reason: `Unsupported market_code ${tip.market_code}`
-    };
-}
-
-function settleMatchResult(tip, selectionCode, homeScore, awayScore) {
-    const result = winnerFromScores(homeScore, awayScore);
-
-    if (!['HOME', 'DRAW', 'AWAY'].includes(selectionCode)) {
-        return { tip, result: null, reason: `Unsupported MATCH_RESULT selection_code ${tip.selection_code}` };
-    }
-
-    return {
-        tip,
-        result: selectionCode === result ? 'won' : 'lost',
-        reason: 'MATCH_RESULT settled from full-time score'
-    };
-}
-
-function settleDoubleChance(tip, selectionCode, homeScore, awayScore) {
-    const result = winnerFromScores(homeScore, awayScore);
-    const aliases = {
-        HOME_DRAW: ['HOME', 'DRAW'],
-        HOME_OR_DRAW: ['HOME', 'DRAW'],
-        HOME_AWAY: ['HOME', 'AWAY'],
-        HOME_OR_AWAY: ['HOME', 'AWAY'],
-        DRAW_AWAY: ['DRAW', 'AWAY'],
-        DRAW_OR_AWAY: ['DRAW', 'AWAY']
-    };
-    const coveredResults = aliases[selectionCode];
-
-    if (!coveredResults) {
-        return { tip, result: null, reason: `Unsupported DOUBLE_CHANCE selection_code ${tip.selection_code}` };
-    }
-
-    return {
-        tip,
-        result: coveredResults.includes(result) ? 'won' : 'lost',
-        reason: 'DOUBLE_CHANCE settled from full-time score'
-    };
-}
-
-function settleTotalGoals(tip, selectionCode, homeScore, awayScore) {
-    const line = Number(tip.line);
-
-    if (!Number.isFinite(line)) {
-        return { tip, result: null, reason: 'TOTAL_GOALS line is missing' };
-    }
-
-    const totalGoals = homeScore + awayScore;
-
-    if (totalGoals === line) {
-        return { tip, result: null, reason: 'TOTAL_GOALS push handling is not defined' };
-    }
-
-    if (selectionCode === 'OVER') {
-        return { tip, result: totalGoals > line ? 'won' : 'lost', reason: 'TOTAL_GOALS OVER settled' };
-    }
-
-    if (selectionCode === 'UNDER') {
-        return { tip, result: totalGoals < line ? 'won' : 'lost', reason: 'TOTAL_GOALS UNDER settled' };
-    }
-
-    return { tip, result: null, reason: `Unsupported TOTAL_GOALS selection_code ${tip.selection_code}` };
-}
-
-function settleBtts(tip, selectionCode, homeScore, awayScore) {
-    const bothTeamsScored = homeScore > 0 && awayScore > 0;
-
-    if (selectionCode === 'YES') {
-        return { tip, result: bothTeamsScored ? 'won' : 'lost', reason: 'BTTS YES settled' };
-    }
-
-    if (selectionCode === 'NO') {
-        return { tip, result: bothTeamsScored ? 'lost' : 'won', reason: 'BTTS NO settled' };
-    }
-
-    return { tip, result: null, reason: `Unsupported BTTS selection_code ${tip.selection_code}` };
 }
 
 async function settleEligibleSlips(rows, client) {
@@ -298,66 +265,46 @@ async function settleEligibleSlips(rows, client) {
     const manualReview = [];
 
     for (const [slipId, legs] of grouped.entries()) {
-        if (legs.some((leg) => leg.tip_result === 'void')) {
+        const evaluation = evaluateSlipSettlement(
+            legs.map((leg) => ({ tipResult: leg.tip_result })),
+            {
+                stakeUnits: Number(legs[0].stake_units),
+                totalOdds: Number(legs[0].total_odds)
+            }
+        );
+
+        if (evaluation.outcome === 'manual_void_review') {
             manualReview.push({
                 slipId,
-                reason: 'Slip contains a void leg and void-leg accumulator rules are not defined'
+                reason: evaluation.reason
             });
             continue;
         }
 
-        if (legs.some((leg) => leg.tip_result === 'lost')) {
-            const slip = await updateSlipResult(
-                slipId,
-                {
-                    result: 'lost',
-                    returnUnits: 0,
-                    profitUnits: -Number(legs[0].stake_units)
-                },
-                client
-            );
-            updated.push(toSlipSummary(slip));
-            continue;
-        }
-
-        if (legs.every((leg) => leg.tip_result === 'won')) {
-            const returnUnits = Number(legs[0].stake_units) * Number(legs[0].total_odds);
-            const slip = await updateSlipResult(
-                slipId,
-                {
-                    result: 'won',
-                    returnUnits,
-                    profitUnits: returnUnits - Number(legs[0].stake_units)
-                },
-                client
-            );
-            updated.push(toSlipSummary(slip));
-            continue;
-        }
-
+        // slip.total_odds is intentionally never touched here: it stays a
+        // permanent snapshot of the odds stored on the tips.
         const slip = await updateSlipResult(
             slipId,
             {
-                result: 'pending',
-                returnUnits: null,
-                profitUnits: null
+                result: evaluation.outcome,
+                returnUnits: evaluation.returnUnits,
+                profitUnits: evaluation.profitUnits
             },
             client
         );
+
         updated.push(toSlipSummary(slip));
     }
 
     return { updated, manualReview };
 }
 
-function winnerFromScores(homeScore, awayScore) {
-    if (homeScore > awayScore) return 'HOME';
-    if (awayScore > homeScore) return 'AWAY';
-    return 'DRAW';
-}
+function sameScore(storedValue, trueOddsValue) {
+    if (storedValue === null || storedValue === undefined) {
+        return false;
+    }
 
-function normalizeCode(value) {
-    return String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+    return Number(storedValue) === Number(trueOddsValue);
 }
 
 function skippedTip(tip, reason) {
@@ -380,10 +327,21 @@ function summarizeTrueOddsMatch(match) {
     };
 }
 
+function toLocalMatchSummary(match) {
+    return {
+        id: Number(match.id),
+        status: match.status,
+        homeScore: match.home_score === null ? null : Number(match.home_score),
+        awayScore: match.away_score === null ? null : Number(match.away_score)
+    };
+}
+
 function toSlipSummary(slip) {
     return {
         id: Number(slip.id),
         result: slip.result,
+        totalOdds: slip.total_odds === null ? null : Number(slip.total_odds),
+        stakeUnits: slip.stake_units === null ? null : Number(slip.stake_units),
         returnUnits: slip.return_units === null ? null : Number(slip.return_units),
         profitUnits: slip.profit_units === null ? null : Number(slip.profit_units),
         settledAt: slip.settled_at

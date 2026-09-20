@@ -156,6 +156,25 @@ Response:
 }
 ```
 
+Result fields used for settlement:
+
+```text
+status          "scheduled" | "live" | "finished" | ...
+providerStatus  provider status, for example "Ended" | "AP" | "Not start"
+score.home      final score, null until known
+score.away      final score, null until known
+finalResult     "H" | "D" | "A" | null
+resultStatus    "Ended" | "manual" | "AP" | "AET" | "H1" | "Not Start" | "void" | null
+```
+
+This endpoint is Pelosi's primary settlement source: `matches.source_match_id`
+maps directly onto `:matchId`, and a single request settles every pending Pelosi
+tip of that match. Only `status = "finished"` together with
+`resultStatus IN ("Ended", "manual")`, `finalResult IN ("H", "D", "A")` and a
+complete score is settled automatically. `AP`, `AET`, `H1`, `Not Start` and
+`void` require manual handling, and `/api/results` is not a settlement source.
+See `docs/settlement.md`.
+
 ### Match Markets
 
 ```http

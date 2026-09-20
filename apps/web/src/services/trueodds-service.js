@@ -133,7 +133,7 @@ export async function getMatchFromTrueOdds(matchId) {
 export async function importTipFromTrueOddsMarkets(data) {
     validateImportInput(data);
 
-    const response = await getTrueOddsLegacyMatchMarkets(data.matchId);
+    const { response, marketsSource } = await fetchImportMarkets(data.matchId);
     const authoritativeSelection = buildImportSelectionFromLegacyMarkets(response, data);
     validateLegacyImportSourceIds(authoritativeSelection);
 
@@ -230,6 +230,7 @@ export async function importTipFromTrueOddsMarkets(data) {
 
         return {
             source,
+            marketsSource,
             sport,
             competition,
             homeTeam,
@@ -258,6 +259,88 @@ function validateImportInput(data) {
     if (data.creationType && !['manual', 'automatic'].includes(data.creationType)) {
         throw new Error('Invalid creation type');
     }
+}
+
+/**
+ * Tip import prefers the deployed `/api/matches/:id/markets` endpoint because
+ * that is the odds feed the TrueOdds UI serves for bettable matches, but it
+ * refuses to serve matches that have already finished ("This match is no
+ * longer available for betting.").
+ *
+ * The documented `/api/v1/matches/:matchId/markets` endpoint still returns the
+ * stored markets (and the final score/result) for finished matches, so it is
+ * used as the fallback. The v1 payload is normalized into the same shape the
+ * rest of the import pipeline already validates and stores.
+ */
+async function fetchImportMarkets(matchId) {
+    try {
+        const response = await getTrueOddsLegacyMatchMarkets(matchId);
+
+        return { response, marketsSource: 'trueodds-live /api/matches/:matchId/markets' };
+    } catch (error) {
+        if (!shouldFallbackToLegacyTrueOdds(error)) {
+            throw error;
+        }
+
+        const response = await getTrueOddsMatchMarkets(matchId);
+
+        return {
+            response: toLegacyShapedMarketsResponse(response),
+            marketsSource: 'trueodds-v1 /api/v1/matches/:matchId/markets'
+        };
+    }
+}
+
+function toLegacyShapedMarketsResponse(response) {
+    const match = response?.match ?? {};
+
+    return {
+        match: {
+            trueodds_id: firstPresent(match.trueOddsId, match.id),
+            event_id: firstPresent(match.id, match.trueOddsId),
+            sport_name: match.sport?.name ?? null,
+            start_time: match.startsAt ?? null,
+            country: match.competition?.country ?? null,
+            tournament_id: match.competition?.id ?? null,
+            league: match.competition?.name ?? null,
+            home_team_id: match.homeTeam?.id ?? null,
+            home_team_name: match.homeTeam?.name ?? null,
+            away_team_id: match.awayTeam?.id ?? null,
+            away_team_name: match.awayTeam?.name ?? null,
+            match_status: match.providerStatus ?? match.status ?? null,
+            home_score: match.score?.home ?? null,
+            away_score: match.score?.away ?? null
+        },
+        market_groups: (response?.markets ?? []).map(toLegacyShapedMarketGroup)
+    };
+}
+
+function toLegacyShapedMarketGroup(market) {
+    const marketName = market.name ?? market.code ?? null;
+    const specifier = market.sourceMarketSpecifier ?? '';
+
+    return {
+        market_id: market.sourceMarketId,
+        market_specifier: specifier,
+        market_title: marketName,
+        market_name: marketName,
+        market_category: market.code,
+        market_category_slug: market.code,
+        outcomes: (market.selections ?? []).map((selection) => ({
+            event_odds_id: selection.sourceOddsId,
+            outcome_id: selection.sourceSelectionId ?? null,
+            market_id: market.sourceMarketId,
+            market_name: marketName,
+            market_desc: marketName,
+            market_specifier: specifier,
+            market_title: marketName,
+            bet_type: selection.betType ?? null,
+            pick_team: selection.name ?? selection.outcomeName ?? null,
+            outcome_desc: selection.outcomeName ?? selection.name ?? null,
+            odds: selection.odds,
+            is_active: selection.isActive ?? true
+        }))
+    };
 }
 
 export async function getResultsFromTrueOdds(filters = {}) {
@@ -475,7 +558,7 @@ function normalizeMarketAlias(value) {
     if (['winner', 'main', '1x2', 'match_result'].includes(normalized)) return 'winner';
     if (['totals', 'total_goals', 'over_under', 'over/under'].includes(normalized)) return 'totals';
     if (['doublechance', 'double_chance', 'double chance'].includes(normalized)) return 'doublechance';
-    if (['gg', 'btts', 'gg/ng'].includes(normalized)) return 'btts';
+    if (['gg', 'btts', 'gg/ng', 'gg_ng', 'both_teams_to_score'].includes(normalized)) return 'btts';
     if (normalized === 'handicap') return 'handicap';
 
     return normalized;
@@ -492,9 +575,9 @@ function normalizeSelectionAlias(value) {
     if (normalized.startsWith('under')) return 'under';
     if (['yes', 'gg_yes'].includes(normalized)) return 'yes';
     if (['no', 'gg_no'].includes(normalized)) return 'no';
-    if (['home_draw', 'home or draw'].includes(normalized)) return 'home_draw';
-    if (['home_away', 'home or away'].includes(normalized)) return 'home_away';
-    if (['draw_away', 'draw or away'].includes(normalized)) return 'draw_away';
+    if (['home_draw', 'home or draw', 'home_or_draw', 'draw_home', '1x'].includes(normalized)) return 'home_draw';
+    if (['home_away', 'home or away', 'home_or_away', 'away_home', '12'].includes(normalized)) return 'home_away';
+    if (['draw_away', 'draw or away', 'draw_or_away', 'away_draw', 'x2'].includes(normalized)) return 'draw_away';
 
     return normalized;
 }
@@ -608,18 +691,29 @@ function toPelosiMarketFromLegacyGroup(group) {
 
 function inferLegacyMarketCode(group) {
     const title = String(group.market_title || group.market_name || '').toLowerCase();
+    const slug = String(group.market_category_slug || group.market_category || '').toLowerCase();
 
-    if (title.includes('1x2')) return 'MATCH_RESULT';
-    if (title.includes('double chance')) return 'DOUBLE_CHANCE';
-    if (title.includes('over/under')) return 'TOTAL_GOALS';
-    if (title.includes('handicap')) return 'HANDICAP';
-    if (title.includes('gg/ng')) return 'BTTS';
+    if (title.includes('1x2') || slug === 'match_result') return 'MATCH_RESULT';
+    if (title.includes('double chance') || slug === 'double_chance') return 'DOUBLE_CHANCE';
+    if (title.includes('over/under') || slug === 'total_goals') return 'TOTAL_GOALS';
+    if (title.includes('handicap') || slug === 'handicap') return 'HANDICAP';
+    if (
+        title.includes('gg/ng')
+        || title.includes('both teams to score')
+        || slug === 'btts'
+        || slug === 'both_teams_to_score'
+    ) {
+        return 'BTTS';
+    }
 
     return 'UNKNOWN';
 }
 
 function inferLegacySelectionCode(outcome) {
-    const value = String(outcome.outcome_desc || outcome.pick_team || outcome.bet_type || '').toLowerCase();
+    const value = String(outcome.outcome_desc || outcome.pick_team || outcome.bet_type || '').trim().toLowerCase();
+    const doubleChanceCode = inferDoubleChanceSelectionCode(value);
+
+    if (doubleChanceCode) return doubleChanceCode;
 
     if (value === 'home' || value.includes('home win')) return 'HOME';
     if (value === 'away' || value.includes('away win')) return 'AWAY';
@@ -630,6 +724,26 @@ function inferLegacySelectionCode(outcome) {
     if (value === 'no') return 'NO';
 
     return 'UNKNOWN';
+}
+
+/**
+ * Double chance selections are stored with explicit two-way codes
+ * (HOME_OR_DRAW / HOME_OR_AWAY / DRAW_OR_AWAY) so settlement never has to
+ * guess from display names.
+ */
+function inferDoubleChanceSelectionCode(value) {
+    let normalized = value.replace(/[\s-]+/g, '_');
+
+    if (normalized.startsWith('double_chance')) {
+        const separatorIndex = normalized.indexOf('|');
+        normalized = separatorIndex === -1 ? 'double_chance' : normalized.slice(separatorIndex + 1);
+    }
+
+    if (['home_or_draw', 'home_draw', 'draw_home', '1x'].includes(normalized)) return 'HOME_OR_DRAW';
+    if (['home_or_away', 'home_away', 'away_home', '12'].includes(normalized)) return 'HOME_OR_AWAY';
+    if (['draw_or_away', 'draw_away', 'away_draw', 'x2'].includes(normalized)) return 'DRAW_OR_AWAY';
+
+    return null;
 }
 
 function inferLine(specifier) {

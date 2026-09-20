@@ -1,7 +1,20 @@
 import {
     createSlip,
-    getSlipById
+    getSlipById,
+    getSlips,
+    hideSlip as hideSlipRecord,
+    publishSlip as publishSlipRecord
 } from '../services/slip-service.js';
+
+export async function listSlips(req, res) {
+    try {
+        const slips = await getSlips(req.query);
+
+        res.json(slips);
+    } catch (error) {
+        sendError(res, error);
+    }
+}
 
 export async function createSlipController(req, res) {
     try {
@@ -24,24 +37,66 @@ export async function getSlip(req, res) {
         }
 
         res.json(slip);
-
     } catch (error) {
-        console.error(error);
+        sendError(res, error);
+    }
+}
 
-        res.status(500).json({
-            error: 'Something went wrong'
-        });
+export async function publishSlip(req, res) {
+    try {
+        const slip = await publishSlipRecord(req.params.id);
+
+        if (!slip) {
+            return res.status(404).json({
+                error: 'Slip not found'
+            });
+        }
+
+        res.json(slip);
+    } catch (error) {
+        sendError(res, error);
+    }
+}
+
+export async function hideSlip(req, res) {
+    try {
+        const slip = await hideSlipRecord(req.params.id);
+
+        if (!slip) {
+            return res.status(404).json({
+                error: 'Slip not found'
+            });
+        }
+
+        res.json(slip);
+    } catch (error) {
+        sendError(res, error);
     }
 }
 
 function sendError(res, error) {
-    const isClientError = error.message.includes('required')
-        || error.message.includes('Invalid')
-        || error.message.includes('Duplicate')
-        || error.message.includes('not found')
-        || error.message.includes('positive integer');
+    const status = resolveErrorStatus(error);
 
-    res.status(isClientError ? 400 : 500).json({
+    if (status >= 500) {
+        console.error(error);
+
+        return res.status(status).json({
+            error: 'Something went wrong'
+        });
+    }
+
+    res.status(status).json({
         error: error.message
     });
+}
+
+function resolveErrorStatus(error) {
+    if (Number.isInteger(error?.status) && error.status >= 400 && error.status < 600) {
+        return error.status;
+    }
+
+    const message = String(error?.message || '');
+    const isClientError = /required|Invalid|Duplicate|not found|positive integer/i.test(message);
+
+    return isClientError ? 400 : 500;
 }

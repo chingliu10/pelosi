@@ -22,25 +22,27 @@ TRUEODDS_BASE_URL
 TRUEODDSAPIKEY
 ```
 
-The current `.env` value points to:
+The `.env` value points at the documented v1 API:
 
 ```text
 http://204.168.129.223/api/v1
 ```
 
-But the deployed TrueOdds server currently serves the working endpoints under:
+The same server also serves the bettable feed used by the TrueOdds web UI under:
 
 ```text
 http://204.168.129.223/api
 ```
 
-For V1, Pelosi uses the currently deployed `/api` endpoints for browsing and import. The future `/api/v1` endpoints may still be useful later, but `/api/v1` returning `404` does not block V1 import anymore.
+Both are live. Pelosi calls `/api/v1` for search, exact match details, market
+resolution and settlement lookup, and keeps `/api` for the bettable match feed,
+its import odds source and the debug results feed.
 
-Tip import re-fetches the current match markets from TrueOdds immediately before writing anything and snapshots the selected odds from that fresh server-side response.
+Tip import re-fetches the current match markets from TrueOdds immediately before writing anything and snapshots the selected odds from that fresh server-side response. It reads `/api/matches/:trueodds_id/markets` first and falls back to `/api/v1/matches/:matchId/markets` when the match is no longer bettable, so tips can still be imported for matches that finished while Pelosi was offline.
 
 ## Working TrueOdds Endpoints
 
-The live web UI uses these endpoints:
+The live TrueOdds web UI uses these endpoints:
 
 ```http
 GET /api/matches
@@ -48,16 +50,24 @@ GET /api/matches/:trueodds_id/markets
 GET /api/results
 ```
 
-The documented `/api/v1/...` search and market endpoints previously returned `404` during testing. The match-detail endpoint is now verified and is Pelosi's intended primary settlement lookup.
+The `/api/matches/:trueodds_id/markets` feed only serves bettable matches. It
+answers `404 {"error":"This match is no longer available for betting."}` for
+matches that already finished.
 
-The documented stable API contract may be supported later:
+The documented `/api/v1/...` endpoints are now live on the deployed server and
+are Pelosi's preferred read API:
 
 ```http
-GET /api/v1/matches/search
+GET /api/v1/matches/search?q=Cristal
 GET /api/v1/matches/:matchId
 GET /api/v1/matches/:matchId/markets
 GET /api/v1/matches/:matchId/markets/:marketId/selections/:selectionId
 ```
+
+`GET /api/v1/matches/:matchId` is Pelosi's settlement source. It also works for
+finished matches, which the `/api` markets feed refuses to serve, so it is the
+fallback for tip import as well. The full settlement contract is documented in
+[`settlement.md`](./settlement.md).
 
 ## Pelosi Routes
 
@@ -106,7 +116,11 @@ GET /api/v1/matches/:matchId
 
 with `Authorization: Bearer TRUEODDSAPIKEY`.
 
-This exact match-detail endpoint is the intended primary source for future settlement lookup because it can return match status, score, `finalResult`, and `resultStatus` for one match. The `/api/results` feed should remain debug/fallback functionality only, not the preferred settlement source.
+This exact match-detail endpoint **is** Pelosi's primary settlement source. It
+returns match status, score, `finalResult` and `resultStatus` for one match, and
+`matches.source_match_id` maps directly onto it. The `/api/results` feed remains
+debug/fallback functionality only and is never the settlement source. See
+[`settlement.md`](./settlement.md) for the automatic settlement contract.
 
 Verified with:
 
@@ -175,7 +189,24 @@ Pelosi does not trust browser-sent names or odds for import. The backend calls:
 GET /api/matches/:trueodds_id/markets
 ```
 
-Then it finds exactly one matching outcome and saves the odds from that fresh TrueOdds response.
+and, when that feed refuses the match because it already finished, falls back to:
+
+```http
+GET /api/v1/matches/:matchId/markets
+```
+
+Then it finds exactly one matching outcome and saves the odds from that fresh
+TrueOdds response. The response reports which feed was used in `marketsSource`.
+
+### Settle Match From TrueOdds
+
+```http
+POST /api/v1/settlement/matches/:sourceMatchId
+```
+
+Pelosi calls `GET /api/v1/matches/:sourceMatchId`, classifies the result, and
+settles every eligible pending tip of that match in one transaction. The full
+contract lives in [`settlement.md`](./settlement.md).
 
 ## Actual Match Search Fields
 
@@ -337,7 +368,9 @@ Example:
 
 ## Current `/api` Import Requirement
 
-The live `/api/matches/:trueodds_id/markets` response now includes stable identifiers required for import:
+The live `/api/matches/:trueodds_id/markets` response includes the stable
+identifiers required for import, and the `/api/v1/matches/:matchId/markets`
+fallback exposes the same identifiers in v1 form:
 
 ```text
 trueodds_id
@@ -376,7 +409,9 @@ category_id = sr:category:1
 
 ## Tip Import Rule
 
-Tip import uses the working `/api/matches/:trueodds_id/markets` endpoint.
+Tip import uses the working `/api/matches/:trueodds_id/markets` endpoint, with
+`/api/v1/matches/:matchId/markets` as the fallback for matches that are no
+longer bettable.
 
 The safe import flow is:
 
@@ -391,7 +426,7 @@ The safe import flow is:
 8. Pelosi creates the tip odds snapshot.
 ```
 
-The `/api/v1` resolve endpoint is optional future functionality and is not required for V1 import.
+The `/api/v1` resolve endpoint is still not used by import.
 
 ## Tested Example
 
