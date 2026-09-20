@@ -157,11 +157,11 @@ export async function updateSlipResult(id, data, db = pool) {
         `
         UPDATE slips
         SET
-            result = $2,
+            result = $2::varchar,
             return_units = $3,
             profit_units = $4,
             settled_at = CASE
-                WHEN $2 = 'pending' THEN NULL
+                WHEN $2::varchar = 'pending' THEN NULL
                 ELSE NOW()
             END
         WHERE id = $1
@@ -306,6 +306,53 @@ export async function findSlipsContainingTip(tipId, db = pool) {
         ORDER BY s.slip_date DESC, s.id DESC
         `,
         [tipId]
+    );
+
+    return result.rows;
+}
+
+export async function findSlipIdsContainingTips(tipIds, db = pool) {
+    if (tipIds.length === 0) {
+        return [];
+    }
+
+    const result = await db.query(
+        `
+        SELECT DISTINCT slip_id
+        FROM slip_tips
+        WHERE tip_id = ANY($1::bigint[])
+        ORDER BY slip_id
+        `,
+        [tipIds]
+    );
+
+    return result.rows.map((row) => Number(row.slip_id));
+}
+
+export async function findSlipSettlementLegs(slipIds, db = pool) {
+    if (slipIds.length === 0) {
+        return [];
+    }
+
+    const result = await db.query(
+        `
+        SELECT
+            s.id AS slip_id,
+            s.stake_units,
+            s.total_odds,
+            s.result AS slip_result,
+            st.leg_order,
+            t.id AS tip_id,
+            t.result AS tip_result
+        FROM slips s
+        JOIN slip_tips st
+            ON st.slip_id = s.id
+        JOIN tips t
+            ON t.id = st.tip_id
+        WHERE s.id = ANY($1::bigint[])
+        ORDER BY s.id, st.leg_order
+        `,
+        [slipIds]
     );
 
     return result.rows;

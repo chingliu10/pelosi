@@ -28,6 +28,7 @@ export async function createSlip(data) {
     const tipIds = validateSlipInput(data);
     const uniqueTipIds = ensureUniqueTipIds(tipIds);
     const client = await pool.connect();
+    let slipId;
 
     try {
         await client.query('BEGIN');
@@ -53,14 +54,15 @@ export async function createSlip(data) {
         await attachTipsToSlip(slip.id, uniqueTipIds, client);
 
         await client.query('COMMIT');
-
-        return getSlipById(slip.id);
+        slipId = slip.id;
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
     } finally {
         client.release();
     }
+
+    return getSlipById(slipId);
 }
 
 export async function publishSlip(id) {

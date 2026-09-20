@@ -14,10 +14,11 @@ export async function createTip(data, db = pool) {
             selection_name,
             line,
             odds,
+            odds_captured_at,
             result,
             creation_type
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, NOW()), $12, $13)
         RETURNING
             id,
             match_id,
@@ -49,6 +50,7 @@ export async function createTip(data, db = pool) {
             data.selectionName ?? null,
             data.line ?? null,
             data.odds,
+            data.oddsCapturedAt ?? null,
             data.result ?? 'pending',
             data.creationType ?? 'manual'
         ]
@@ -155,6 +157,39 @@ export async function findTipsByMatchId(matchId, db = pool) {
     return result.rows;
 }
 
+export async function findPendingTipsByMatchId(matchId, db = pool) {
+    const result = await db.query(
+        `
+        SELECT
+            id,
+            match_id,
+            source_odds_id,
+            source_market_id,
+            source_selection_id,
+            market_code,
+            market_name,
+            selection_code,
+            selection_name,
+            line,
+            odds,
+            result,
+            creation_type,
+            odds_captured_at,
+            published_at,
+            settled_at,
+            created_at,
+            updated_at
+        FROM tips
+        WHERE match_id = $1
+          AND result = 'pending'
+        ORDER BY id
+        `,
+        [matchId]
+    );
+
+    return result.rows;
+}
+
 export async function listTips(filters = {}, db = pool) {
     const result = await db.query(
         `
@@ -202,9 +237,9 @@ export async function updateTipResult(id, resultValue, db = pool) {
         `
         UPDATE tips
         SET
-            result = $2,
+            result = $2::varchar,
             settled_at = CASE
-                WHEN $2 = 'pending' THEN NULL
+                WHEN $2::varchar = 'pending' THEN NULL
                 ELSE NOW()
             END
         WHERE id = $1

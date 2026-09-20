@@ -1,4 +1,17 @@
-import { getSlipById } from '../services/slip-service.js';
+import {
+    createSlip,
+    getSlipById
+} from '../services/slip-service.js';
+
+export async function createSlipController(req, res) {
+    try {
+        const slip = await createSlip(req.body);
+
+        res.status(201).json(slip);
+    } catch (error) {
+        sendError(res, error);
+    }
+}
 
 export async function getSlip(req, res) {
     try {
@@ -19,4 +32,16 @@ export async function getSlip(req, res) {
             error: 'Something went wrong'
         });
     }
+}
+
+function sendError(res, error) {
+    const isClientError = error.message.includes('required')
+        || error.message.includes('Invalid')
+        || error.message.includes('Duplicate')
+        || error.message.includes('not found')
+        || error.message.includes('positive integer');
+
+    res.status(isClientError ? 400 : 500).json({
+        error: error.message
+    });
 }

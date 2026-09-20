@@ -2,6 +2,16 @@ import express from 'express';
 import 'dotenv/config';
 import pool from './db/postgres.js';
 import { getSlip } from './controllers/slip-controller.js';
+import settlementRoutes from './routes/api/settlement-routes.js';
+import slipRoutes from './routes/api/slip-routes.js';
+import {
+    getTrueOddsMatch,
+    getTrueOddsMarkets,
+    getTrueOddsResultById,
+    getTrueOddsResults,
+    importTrueOddsTip,
+    searchTrueOddsMatches
+} from './controllers/trueodds-controller.js';
 
 const app = express();
 
@@ -15,6 +25,14 @@ app.get('/', (req, res) => {
 });
 
 app.get('/test/slip/:id', getSlip);
+app.use('/api/v1/slips', slipRoutes);
+app.use('/api/v1/settlement', settlementRoutes);
+app.get('/api/trueodds/matches/search', searchTrueOddsMatches);
+app.get('/api/trueodds/matches/:trueOddsId/markets', getTrueOddsMarkets);
+app.get('/api/trueodds/matches/:matchId', getTrueOddsMatch);
+app.get('/api/trueodds/results', getTrueOddsResults);
+app.get('/api/trueodds/results/:trueOddsId', getTrueOddsResultById);
+app.post('/api/trueodds/tips/import', importTrueOddsTip);
 
 try {
     const result = await pool.query('SELECT NOW()');
