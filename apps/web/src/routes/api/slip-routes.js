@@ -6,13 +6,17 @@ import {
     listSlips,
     publishSlip
 } from '../../controllers/slip-controller.js';
+import { requireAuth } from '../../middleware/require-auth.js';
 
 const router = Router();
 
+// Public read routes.
 router.get('/', listSlips);
-router.post('/', createSlipController);
 router.get('/:id', getSlip);
-router.post('/:id/publish', publishSlip);
-router.post('/:id/hide', hideSlip);
+
+// Admin write routes.
+router.post('/', requireAuth, createSlipController);
+router.post('/:id/publish', requireAuth, publishSlip);
+router.post('/:id/hide', requireAuth, hideSlip);
 
 export default router;
