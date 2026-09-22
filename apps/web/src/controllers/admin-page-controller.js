@@ -2,12 +2,12 @@ import { createSessionContext } from '../config/session.js';
 import { currentUser, logout } from '../services/auth-service.js';
 import { safeAdminPath } from '../utils/admin-path.js';
 
-const defaultAdminPath = '/admin/tips/new';
+const defaultAdminPath = '/admin';
 
 const sharedAdminScript = '/js/admin/ui-shared.js';
 
 const navItems = [
-    { key: 'dashboard', label: 'Dashboard', available: false },
+    { key: 'dashboard', label: 'Dashboard', available: true, href: '/admin' },
     { key: 'tips', label: 'Tips', available: true, href: '/admin/tips' },
     { key: 'slips', label: 'Slips', available: true, href: '/admin/slips' },
     { key: 'settlement', label: 'Settlement', available: true, href: '/admin/settlement' },
@@ -35,6 +35,22 @@ export async function renderCreateTipPage(req, res, next) {
             pageTitle: 'Create tip',
             pageScripts: [sharedAdminScript, '/js/admin/create-tip.js'],
             nav: buildNav('tips'),
+            user
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function renderDashboardPage(req, res, next) {
+    try {
+        const user = await currentUser(createSessionContext(req));
+
+        res.render('admin/dashboard', {
+            layout: 'admin',
+            pageTitle: 'Dashboard',
+            pageScripts: [sharedAdminScript, '/js/admin/dashboard.js'],
+            nav: buildNav('dashboard'),
             user
         });
     } catch (error) {

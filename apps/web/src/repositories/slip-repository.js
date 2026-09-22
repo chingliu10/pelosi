@@ -113,6 +113,31 @@ export async function listSlips(filters = {}, db = pool) {
     return result.rows;
 }
 
+/**
+ * Total number of slips matching the same filters as `listSlips`, so callers can
+ * report totals without loading every row.
+ */
+export async function countSlips(filters = {}, db = pool) {
+    const result = await db.query(
+        `
+        SELECT COUNT(*)::int AS total
+        FROM slips s
+        WHERE ($1::varchar IS NULL OR s.result = $1)
+          AND ($2::varchar IS NULL OR s.publication_status = $2)
+          AND ($3::varchar IS NULL OR s.creation_type = $3)
+          AND ($4::varchar[] IS NULL OR s.result = ANY($4::varchar[]))
+        `,
+        [
+            filters.result ?? null,
+            filters.publicationStatus ?? null,
+            filters.creationType ?? null,
+            filters.results ?? null
+        ]
+    );
+
+    return result.rows[0]?.total ?? 0;
+}
+
 export async function attachTipToSlip(slipId, tipId, legOrder, db = pool) {
     const result = await db.query(
         `

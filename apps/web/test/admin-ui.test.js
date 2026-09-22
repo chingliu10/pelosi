@@ -129,7 +129,7 @@ test('anonymous browsers are redirected from the admin page to sign in', async (
     const root = await request('/admin');
 
     assert.equal(root.status, 302);
-    assert.equal(root.location, '/admin/tips/new');
+    assert.equal(root.location, '/admin/login?next=%2Fadmin');
 });
 
 test('the sign-in page renders the session login form', async () => {
@@ -140,7 +140,7 @@ test('the sign-in page renders the session login form', async () => {
     assert.ok(response.text.includes('id="login-form"'));
     assert.ok(response.text.includes('id="login-email"'));
     assert.ok(response.text.includes('id="login-password"'));
-    assert.ok(response.text.includes('data-next="/admin/tips/new"'));
+    assert.ok(response.text.includes('data-next="/admin"'));
     assert.ok(response.text.includes('/js/admin/login.js'));
     assert.ok(response.text.includes('/css/admin.css'));
 });
@@ -149,16 +149,16 @@ test('the sign-in page only redirects to admin paths', async () => {
     const response = await request('/admin/login?next=https://evil.example/phish');
 
     assert.equal(response.status, 200);
-    assert.ok(response.text.includes('data-next="/admin/tips/new"'));
+    assert.ok(response.text.includes('data-next="/admin"'));
     assert.ok(!response.text.includes('evil.example'));
 });
 
-test('signed-in admins are sent straight from sign-in to the create tip page', async () => {
+test('signed-in admins are sent straight from sign-in to the dashboard', async () => {
     const jar = await signedInJar();
     const response = await request('/admin/login', { jar });
 
     assert.equal(response.status, 302);
-    assert.equal(response.location, '/admin/tips/new');
+    assert.equal(response.location, '/admin');
 });
 
 test('the create tip page renders the full workflow shell', async () => {
@@ -312,25 +312,26 @@ test('the Tips nav item is functional and active on both tips pages', async () =
 
     const disabled = (await request('/admin/tips', { jar })).text;
 
-    for (const label of ['Dashboard']) {
+    // Every main nav item is now a real link - no disabled placeholders remain.
+    assert.equal(
+        disabled.includes('is-disabled" aria-disabled="true" title="Coming in a later task"'),
+        false,
+        'no admin nav item should be disabled any more'
+    );
+
+    for (const [label, href] of [
+        ['Dashboard', '/admin'],
+        ['Tips', '/admin/tips'],
+        ['Slips', '/admin/slips'],
+        ['Settlement', '/admin/settlement'],
+        ['Performance', '/admin/performance']
+    ]) {
         assert.ok(
-            disabled.includes(`is-disabled" aria-disabled="true" title="Coming in a later task">${label}`),
-            `${label} should stay disabled`
+            disabled.includes(`href="${href}">${label}</a>`)
+            || disabled.includes(`href="${href}" aria-current="page">${label}</a>`),
+            `${label} should be a functional nav link`
         );
     }
-
-    assert.ok(
-        disabled.includes('nav__link" href="/admin/slips">Slips</a>'),
-        'Slips should now be a functional nav link'
-    );
-    assert.ok(
-        disabled.includes('nav__link" href="/admin/settlement">Settlement</a>'),
-        'Settlement should now be a functional nav link'
-    );
-    assert.ok(
-        disabled.includes('nav__link" href="/admin/performance">Performance</a>'),
-        'Performance should now be a functional nav link'
-    );
 });
 
 test('every element id the tips script uses exists in the rendered page', async () => {
@@ -612,12 +613,11 @@ test('the Settlement nav item is functional and active', async () => {
 
     assert.match(html, /nav__link is-active" href="\/admin\/settlement" aria-current="page">Settlement<\/a>/);
 
-    for (const label of ['Dashboard']) {
-        assert.ok(
-            html.includes(`is-disabled" aria-disabled="true" title="Coming in a later task">${label}`),
-            `${label} should stay disabled`
-        );
-    }
+    assert.equal(
+        html.includes('is-disabled" aria-disabled="true" title="Coming in a later task"'),
+        false,
+        'no admin nav item should be disabled any more'
+    );
 
     const tipsPage = (await request('/admin/tips', { jar })).text;
 
@@ -749,7 +749,7 @@ test('the Performance nav item is functional and active', async () => {
     const html = (await request('/admin/performance', { jar })).text;
 
     assert.match(html, /nav__link is-active" href="\/admin\/performance" aria-current="page">Performance<\/a>/);
-    assert.ok(html.includes('is-disabled" aria-disabled="true" title="Coming in a later task">Dashboard'));
+    assert.ok(html.includes('nav__link" href="/admin">Dashboard</a>'));
 
     const settlementPage = (await request('/admin/settlement', { jar })).text;
 
@@ -866,6 +866,130 @@ test('every element id the performance script uses exists in the rendered page',
     for (const id of ids) {
         assert.ok(html.includes(`id="${id}"`), `performance page is missing id="${id}"`);
     }
+});
+
+test('anonymous browsers are redirected from the dashboard to sign in', async () => {
+    const response = await request('/admin');
+
+    assert.equal(response.status, 302);
+    assert.equal(response.location, '/admin/login?next=%2Fadmin');
+});
+
+test('the dashboard renders its summary, attention, actions and activity sections', async () => {
+    const jar = await signedInJar();
+    const response = await request('/admin', { jar });
+
+    assert.equal(response.status, 200);
+    assert.match(response.contentType, /text\/html/);
+    assert.ok(response.text.includes('<title>Dashboard · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('Overview of your betting operation.'));
+    assert.ok(response.text.includes('id="summary-cards"'));
+    assert.ok(response.text.includes('Needs attention'));
+    assert.ok(response.text.includes('id="attention-list"'));
+    assert.ok(response.text.includes('Quick actions'));
+    assert.ok(response.text.includes('id="quick-actions"'));
+    assert.ok(response.text.includes('id="performance-snapshot"'));
+    assert.ok(response.text.includes('Cumulative profit') === false, 'the dashboard stays concise');
+    assert.ok(response.text.includes('id="queue-preview"'));
+    assert.ok(response.text.includes('id="recent-tips"'));
+    assert.ok(response.text.includes('id="recent-slips"'));
+    assert.ok(response.text.includes('/js/admin/dashboard.js'));
+    assert.ok(response.text.includes('/js/admin/ui-shared.js'));
+    assert.ok(response.text.includes(email));
+});
+
+test('the Dashboard nav item is functional and active', async () => {
+    const jar = await signedInJar();
+    const html = (await request('/admin', { jar })).text;
+
+    assert.match(html, /nav__link is-active" href="\/admin" aria-current="page">Dashboard<\/a>/);
+
+    const otherPage = (await request('/admin/tips', { jar })).text;
+
+    assert.ok(otherPage.includes('nav__link" href="/admin">Dashboard</a>'));
+});
+
+test('the dashboard script consumes one aggregated API and links to every workflow', async () => {
+    const script = await readAsset('../public/js/admin/dashboard.js');
+
+    assert.equal((script.match(/fetch\(/g) ?? []).length, 1, 'exactly one dashboard request');
+    assert.ok(script.includes("fetch('/api/v1/admin/dashboard'"));
+    assert.ok(script.includes('credentials: \'same-origin\''));
+
+    for (const href of [
+        '/admin/tips?result=pending',
+        '/admin/slips?publicationStatus=draft',
+        '/admin/settlement',
+        '/admin/slips?publicationStatus=published',
+        '/admin/performance',
+        '/admin/tips/new',
+        '/admin/slips/new',
+        '/admin/tips',
+        '/admin/slips'
+    ]) {
+        assert.ok(script.includes(href), `missing dashboard link ${href}`);
+    }
+
+    assert.ok(script.includes('/admin/settlement?match='), 'settlement rows deep link to the match');
+    assert.equal(script.includes('/api/trueodds'), false);
+});
+
+test('the dashboard never recalculates financial metrics', async () => {
+    const script = await readAsset('../public/js/admin/dashboard.js');
+
+    assert.ok(script.includes('performance.profitUnits'));
+    assert.ok(script.includes('performance.roiPercentage'));
+    assert.ok(script.includes('performance.winRatePercentage'));
+    assert.equal(script.includes('profitUnits / '), false, 'ROI must come from the API');
+    assert.equal(script.includes('wins / '), false, 'win rate must come from the API');
+});
+
+test('the dashboard ships loading, empty and error states', async () => {
+    const script = await readAsset('../public/js/admin/dashboard.js');
+    const css = await readAsset('../public/css/admin.css');
+
+    assert.ok(script.includes('Loading dashboard…'));
+    assert.ok(script.includes('No pending tips. Create a tip to get started.'));
+    assert.ok(script.includes('No draft slips. Build a slip from pending tips.'));
+    assert.ok(script.includes('No matches currently require settlement.'));
+    assert.ok(script.includes('No published settled slips yet.'));
+    assert.ok(script.includes('No tips imported yet. Create a tip to get started.'));
+    assert.ok(script.includes('No slips yet. Build a slip from pending tips.'));
+    assert.ok(script.includes('all caught up.'), 'the caught-up empty state exists');
+    assert.ok(script.includes('Performance unavailable right now.'));
+    assert.ok(script.includes('Settlement queue unavailable right now.'));
+    assert.ok(script.includes('The dashboard response could not be read.'));
+    assert.ok(script.includes('sessionExpiredAlert(\'/admin\')'));
+
+    for (const className of ['dashboard-split', 'dashboard-list', 'dashboard-row', 'attention-item', 'quick-actions', 'metric-card__link']) {
+        assert.ok(css.includes(`.${className}`), `stylesheet is missing .${className}`);
+    }
+
+    assert.ok(css.includes('@media (max-width: 1024px)'));
+    assert.ok(css.includes('@media (max-width: 560px)'));
+});
+
+test('every element id the dashboard script uses exists in the rendered page', async () => {
+    const jar = await signedInJar();
+    const html = (await request('/admin', { jar })).text;
+    const ids = elementIdsUsedBy(await readAsset('../public/js/admin/dashboard.js'));
+
+    assert.ok(ids.length >= 8);
+
+    for (const id of ids) {
+        assert.ok(html.includes(`id="${id}"`), `dashboard page is missing id="${id}"`);
+    }
+});
+
+test('the settlement monitor accepts a match deep link without checking TrueOdds', async () => {
+    const script = await readAsset('../public/js/admin/settlement.js');
+
+    assert.ok(script.includes('highlightedSourceMatchId'));
+    assert.ok(script.includes("new URLSearchParams(window.location.search).get('match')"));
+    assert.ok(script.includes('No result checked yet. Click "Check result"'), 'the admin still triggers the check');
+
+    // The deep link must not add another preview call site.
+    assert.equal(script.split('/preview').length - 1, 1);
 });
 
 test('every element id the login script uses exists in the rendered page', async () => {

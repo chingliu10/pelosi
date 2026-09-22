@@ -68,9 +68,10 @@ column and it never leaves the backend.
 | `POST` | `/api/v1/auth/logout` | public | destroys the session, clears the cookie, `200 { success: true }` |
 
 Server-rendered admin pages use the same session through a redirect-based gate
-(`require-admin-page.js`): `GET /admin/tips/new` sends anonymous browsers to
-`GET /admin/login?next=…`, and `POST /admin/logout` ends the session from the
-admin shell. See [`admin_ui_create_tip.md`](./admin_ui_create_tip.md).
+(`require-admin-page.js`): `GET /admin` (the dashboard) sends anonymous browsers
+to `GET /admin/login?next=…`, signed-in admins land on `/admin`, and
+`POST /admin/logout` ends the session from the admin shell. See
+[`admin_dashboard.md`](./admin_dashboard.md).
 
 Login validates input (`400` when email or password is missing), looks the user
 up by lowercase email, rejects unknown, inactive or wrong-password users with

@@ -200,6 +200,7 @@ the responsive CSS.
 
 ## Not built yet
 
-Dashboard, bulk/"settle all", scheduled or background settlement, manual result
-override, audit log and any public settlement surface. The performance screen now
-exists - see [`admin_performance.md`](./admin_performance.md).
+Bulk/"settle all", scheduled or background settlement, manual result override,
+audit log and any public settlement surface. The performance screen and the admin
+dashboard now exist - see [`admin_performance.md`](./admin_performance.md) and
+[`admin_dashboard.md`](./admin_dashboard.md).

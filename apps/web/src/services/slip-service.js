@@ -2,6 +2,7 @@ import pool from '../db/postgres.js';
 import { findTipsByIds } from '../repositories/tip-repository.js';
 import {
     attachTipsToSlip,
+    countSlips,
     createSlip as createSlipRecord,
     findSlipById as findSlipRecordById,
     getSlipWithLegs,
@@ -61,10 +62,12 @@ export async function getPublishedSlipById(slipId) {
 async function listSlipSummaries(filters) {
     const normalizedFilters = normalizeSlipListFilters(filters);
     const rows = await listSlips(normalizedFilters);
+    const total = await countSlips(normalizedFilters);
 
     return {
         slips: rows.map(toSlipListRow),
         count: rows.length,
+        total,
         limit: normalizedFilters.limit,
         offset: normalizedFilters.offset,
         publicationStatus: normalizedFilters.publicationStatus ?? null,

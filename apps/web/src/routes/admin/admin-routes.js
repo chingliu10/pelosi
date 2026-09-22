@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
     logoutPage,
     renderCreateTipPage,
+    renderDashboardPage,
     renderLoginPage,
     renderPerformancePage,
     renderSettlementPage,
@@ -14,7 +15,8 @@ import { requireAdminPage } from '../../middleware/require-admin-page.js';
 
 const router = Router();
 
-router.get('/', (req, res) => res.redirect(302, '/admin/tips/new'));
+// The dashboard is the admin landing page.
+router.get('/', requireAdminPage, renderDashboardPage);
 
 router.get('/login', renderLoginPage);
 router.post('/logout', logoutPage);

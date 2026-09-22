@@ -130,7 +130,8 @@ cd apps/web && npm test
 
 ## Not built yet
 
-Dashboard, public site, same-game parlays, editable stakes and slip
-editing/deletion. The settlement monitor and the performance screen now exist -
-see [`admin_settlement_monitor.md`](./admin_settlement_monitor.md) and
-[`admin_performance.md`](./admin_performance.md).
+Public site, same-game parlays, editable stakes and slip editing/deletion. The
+settlement monitor, the performance screen and the admin dashboard now exist -
+see [`admin_settlement_monitor.md`](./admin_settlement_monitor.md),
+[`admin_performance.md`](./admin_performance.md) and
+[`admin_dashboard.md`](./admin_dashboard.md).

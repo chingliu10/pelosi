@@ -1,0 +1,90 @@
+<section class="page__header page__header--row">
+    <div>
+        <h1 class="page__title">Dashboard</h1>
+        <p class="page__subtitle">Overview of your betting operation.</p>
+    </div>
+    <div class="page__header-actions">
+        <button class="btn btn--ghost" id="dashboard-refresh" type="button">Refresh</button>
+    </div>
+</section>
+
+<noscript>
+    <p class="alert alert--pending">This screen needs JavaScript enabled in your browser.</p>
+</noscript>
+
+<p class="feedback" id="dashboard-feedback" role="status" aria-live="polite"></p>
+
+<section class="card" aria-labelledby="summary-heading">
+    <h2 class="visually-hidden" id="summary-heading">Operational summary</h2>
+    <div class="metric-grid" id="summary-cards"></div>
+</section>
+
+<div class="dashboard-split">
+    <section class="card" aria-labelledby="attention-heading">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="attention-heading">Needs attention</h2>
+                <p class="card__hint">Operational work waiting for you.</p>
+            </div>
+        </div>
+        <div id="attention-list"></div>
+    </section>
+
+    <section class="card" aria-labelledby="quick-actions-heading">
+        <div class="card__header">
+            <h2 class="card__title" id="quick-actions-heading">Quick actions</h2>
+        </div>
+        <div class="quick-actions" id="quick-actions"></div>
+    </section>
+</div>
+
+<div class="dashboard-split">
+    <section class="card" aria-labelledby="dashboard-performance-heading">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="dashboard-performance-heading">Performance — All time</h2>
+                <p class="card__hint">Published settled slips only.</p>
+            </div>
+            <a class="btn btn--ghost btn--sm" href="/admin/performance">View performance</a>
+        </div>
+        <div id="performance-snapshot"></div>
+    </section>
+
+    <section class="card" aria-labelledby="queue-preview-heading">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="queue-preview-heading">Awaiting settlement</h2>
+                <p class="card__hint">Matches with pending tips.</p>
+            </div>
+            <a class="btn btn--ghost btn--sm" href="/admin/settlement">Review settlement</a>
+        </div>
+        <div class="empty" id="queue-preview-empty" hidden></div>
+        <div id="queue-preview"></div>
+    </section>
+</div>
+
+<div class="dashboard-split">
+    <section class="card" aria-labelledby="recent-tips-heading">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="recent-tips-heading">Recent tips</h2>
+                <p class="card__hint">Newest imported tips.</p>
+            </div>
+            <a class="btn btn--ghost btn--sm" href="/admin/tips">View all tips</a>
+        </div>
+        <div class="empty" id="recent-tips-empty" hidden></div>
+        <div id="recent-tips"></div>
+    </section>
+
+    <section class="card" aria-labelledby="recent-slips-heading">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="recent-slips-heading">Recent slips</h2>
+                <p class="card__hint">Newest slips by slip date.</p>
+            </div>
+            <a class="btn btn--ghost btn--sm" href="/admin/slips">View all slips</a>
+        </div>
+        <div class="empty" id="recent-slips-empty" hidden></div>
+        <div id="recent-slips"></div>
+    </section>
+</div>

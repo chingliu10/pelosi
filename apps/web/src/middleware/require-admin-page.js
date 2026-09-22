@@ -11,7 +11,7 @@ export function requireAdminPage(req, res, next) {
         return next();
     }
 
-    const target = safeAdminPath(req.originalUrl) ?? '/admin/tips/new';
+    const target = safeAdminPath(req.originalUrl) ?? '/admin';
 
     res.redirect(302, `/admin/login?next=${encodeURIComponent(target)}`);
 }

@@ -155,5 +155,6 @@ apps/web/test/performance-admin.test.js
 
 ## Not built yet
 
-Dashboard, league/market/team/odds-band breakdowns, bankroll projections,
-betting recommendations, subscriber analytics, and any automatic settlement.
+League/market/team/odds-band breakdowns, bankroll projections, betting
+recommendations, subscriber analytics, and any automatic settlement. The admin
+dashboard now exists - see [`admin_dashboard.md`](./admin_dashboard.md).

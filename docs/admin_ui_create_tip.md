@@ -121,9 +121,9 @@ suite never calls TrueOdds.
 
 ## Known limitations
 
-- The nav items Dashboard, Settlement and Performance are rendered as inert
-  placeholders (`aria-disabled`) because those screens do not exist yet; Tips and
-  Slips are functional.
+- Every main admin nav item is now a real link (Dashboard, Tips, Slips,
+  Settlement, Performance); the dashboard is documented in
+  [`admin_dashboard.md`](./admin_dashboard.md).
 - Imported tips are reviewed on `GET /admin/tips`
   ([tips API and admin Tips Manager](./tips_api_and_admin_manager.md)).
 - Slips are built and managed on `/admin/slips` and `/admin/slips/new`

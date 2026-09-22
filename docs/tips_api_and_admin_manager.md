@@ -193,6 +193,6 @@ apps/web/test/tips-api.test.js
 
 ## Not built yet
 
-Settlement UI, dashboard, performance screen, editing or deleting tips from the
-manager, and any public tips surface. The slip builder and slip manager now
-exist - see [`admin_slips.md`](./admin_slips.md).
+Editing or deleting tips from the manager, and any public tips surface. The slip
+builder and slip manager now exist ([`admin_slips.md`](./admin_slips.md)), as do
+the settlement monitor, the performance screen and the admin dashboard.

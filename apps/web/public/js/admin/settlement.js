@@ -42,7 +42,8 @@
         settling: false,
         settleResult: null,
         settleError: '',
-        refreshing: false
+        refreshing: false,
+        highlightedSourceMatchId: null
     };
 
     const els = {
@@ -93,6 +94,20 @@
 
             state.matches = payload.matches ?? [];
             state.total = Number(payload.total ?? state.matches.length);
+
+            // A dashboard deep link (?match=<sourceMatchId>) preselects the row
+            // for convenience only. No TrueOdds preview is triggered here - the
+            // admin still clicks "Check result" explicitly.
+            if (state.highlightedSourceMatchId && !state.selected) {
+                const highlighted = state.matches.find(
+                    (row) => String(row.sourceMatchId) === String(state.highlightedSourceMatchId)
+                );
+
+                if (highlighted) {
+                    state.selected = highlighted;
+                    state.highlightedSourceMatchId = null;
+                }
+            }
         } catch (error) {
             state.error = state.sessionExpired
                 ? error.message
@@ -351,7 +366,11 @@
         }
 
         if (!state.preview) {
-            els.panel.appendChild(ui.el('p', 'empty', 'No result checked yet.'));
+            els.panel.appendChild(ui.el(
+                'p',
+                'empty',
+                'No result checked yet. Click "Check result" to load the TrueOdds result for this match.'
+            ));
             return;
         }
 
@@ -635,6 +654,12 @@
         state.offset += state.limit;
         loadQueue();
     });
+
+    const initialMatch = new URLSearchParams(window.location.search).get('match');
+
+    if (initialMatch) {
+        state.highlightedSourceMatchId = initialMatch;
+    }
 
     loadQueue();
 })();

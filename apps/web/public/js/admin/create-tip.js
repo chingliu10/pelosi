@@ -58,25 +58,21 @@
 
     /* ---------------- helpers ---------------- */
 
-    function el(tag, className, text) {
-        const node = document.createElement(tag);
-
-        if (className) {
-            node.className = className;
-        }
-
-        if (text !== undefined && text !== null) {
-            node.textContent = String(text);
-        }
-
-        return node;
-    }
-
-    function clear(node) {
-        while (node.firstChild) {
-            node.removeChild(node.firstChild);
-        }
-    }
+    // Leaf helpers are shared with the other admin screens (ui-shared.js).
+    // Only the page-specific helpers that deliberately differ stay local:
+    // formatKickoff/formatStatus wording, the scheduled/live/finished status
+    // tone, the market category mapping and the TrueOdds-specific 5xx message.
+    const ui = window.PelosiAdminUI;
+    const {
+        el,
+        clear,
+        formatOdds,
+        readJson,
+        errorMessage,
+        setFeedback,
+        previewRow,
+        networkFailure
+    } = ui;
 
     function formatKickoff(value) {
         if (!value) {
@@ -93,12 +89,6 @@
             dateStyle: 'medium',
             timeStyle: 'short'
         }).format(date);
-    }
-
-    function formatOdds(value) {
-        const odds = Number(value);
-
-        return Number.isFinite(odds) ? odds.toFixed(2) : '—';
     }
 
     function formatStatus(value) {
@@ -137,23 +127,6 @@
         }
     }
 
-    async function readJson(response) {
-        const text = await response.text();
-
-        try {
-            return JSON.parse(text);
-        } catch {
-            return null;
-        }
-    }
-
-    function errorMessage(payload, fallback) {
-        if (payload && typeof payload.error === 'string') return payload.error;
-        if (payload && payload.error && typeof payload.error.message === 'string') return payload.error.message;
-
-        return fallback;
-    }
-
     /**
      * Turns an API failure into something an admin can act on. 5xx responses
      * usually mean TrueOdds could not be reached from the Pelosi server.
@@ -169,8 +142,6 @@
 
         return errorMessage(payload, `Could not ${action} (HTTP ${response.status}).`);
     }
-
-    const networkFailure = 'Could not reach the Pelosi server. Check that it is running and try again.';
 
     /* ---------------- normalisation ---------------- */
 
@@ -308,17 +279,6 @@
             state.searched ? `Showing ${state.matches.length} match${state.matches.length === 1 ? '' : 'es'} for “${state.query}”.` : '',
             ''
         );
-    }
-
-    function setFeedback(node, message, tone) {
-        node.textContent = message || '';
-        node.classList.toggle('is-hidden', !message);
-
-        for (const variant of ['error', 'pending', 'success']) {
-            node.classList.toggle(`alert--${variant}`, tone === variant);
-        }
-
-        node.classList.toggle('alert', Boolean(tone));
     }
 
     /* ---------------- results ---------------- */
@@ -622,17 +582,6 @@
         const note = el('p', 'muted-note', 'Pelosi re-fetches the odds from TrueOdds and stores the snapshot.');
 
         els.preview.append(actions, note);
-    }
-
-    function previewRow(label, value, valueClass) {
-        const row = el('div', 'preview__row');
-
-        row.append(
-            el('dt', 'preview__label', label),
-            el('dd', `preview__value${valueClass ? ` ${valueClass}` : ''}`, value)
-        );
-
-        return row;
     }
 
     function renderImportSuccess() {

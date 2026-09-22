@@ -14,6 +14,7 @@ import {
 } from './controllers/trueodds-controller.js';
 import { requireAuth } from './middleware/require-auth.js';
 import adminRoutes from './routes/admin/admin-routes.js';
+import dashboardRoutes from './routes/api/admin/dashboard-routes.js';
 import authRoutes from './routes/api/auth-routes.js';
 import performanceRoutes from './routes/api/performance-routes.js';
 import publicSlipRoutes from './routes/api/public-slip-routes.js';
@@ -66,6 +67,9 @@ app.use('/api/v1/performance', performanceRoutes);
 
 // Admin tips read API (Tips Manager + future slip builder).
 app.use('/api/v1/tips', tipsRoutes);
+
+// Admin dashboard overview (aggregates existing services, read-only).
+app.use('/api/v1/admin/dashboard', dashboardRoutes);
 
 // Settlement is admin-only.
 app.use('/api/v1/settlement', settlementRoutes);
