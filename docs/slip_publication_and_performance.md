@@ -16,12 +16,21 @@ Publication is deliberately independent of settlement.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/slips` | List slips (light rows with `legCount`) |
+| `GET` | `/api/v1/slips` | **Admin** list of slips (light rows with `legCount`), all publication statuses |
 | `POST` | `/api/v1/slips` | Create a slip from stored tips |
-| `GET` | `/api/v1/slips/:id` | Full slip with legs, matches and money fields |
+| `GET` | `/api/v1/slips/:id` | **Admin** full slip with legs, matches and money fields |
 | `POST` | `/api/v1/slips/:id/publish` | Publish a slip (draft or hidden) |
 | `POST` | `/api/v1/slips/:id/hide` | Hide a slip without deleting it |
+| `GET` | `/api/v1/public/slips` | Public list: **published only** |
+| `GET` | `/api/v1/public/slips/:id` | Public detail: published only, otherwise `404` |
 | `GET` | `/api/v1/performance` | Public ROI/profit/win-rate derived from published slips |
+| `GET` | `/api/v1/performance/history` | Public daily cumulative-profit trend (see [`admin_performance.md`](./admin_performance.md)) |
+
+Slip management is admin-only: `GET /api/v1/slips` and `GET /api/v1/slips/:id`
+require the admin session (`401` otherwise) so drafts and hidden slips are never
+exposed anonymously. The public follower surface lives under
+`/api/v1/public/slips` and only ever returns published slips. See
+[`admin_slips.md`](./admin_slips.md).
 
 Routers:
 
@@ -42,11 +51,15 @@ Supported optional filters (validated, `400` on bad values):
 
 ```text
 publicationStatus   draft | published | hidden
-result              pending | won | lost | void
+result              pending | won | lost | void | settled   (settled = won or lost)
 creationType        manual | automatic
+sort                slip_date (default) | settled  (newest settlement first)
 limit               1-100 (default 50)
 offset              >= 0 (default 0)
 ```
+
+`result=settled` plus `sort=settled` is what the admin Performance screen uses for
+its "Recent settled slips" panel, so no second results API was needed.
 
 Response:
 
@@ -81,8 +94,8 @@ Response:
 
 The list intentionally returns light rows plus `legCount`; the nested tip/match
 structure stays on `GET /api/v1/slips/:id`. No separate public-history
-repository exists or is needed - `?publicationStatus=published` is the public
-history query.
+repository exists or is needed - the admin list takes `?publicationStatus=` and
+the public list is the published-only `GET /api/v1/public/slips`.
 
 ## Publishing
 
@@ -121,8 +134,7 @@ publication_status = 'hidden'
   `settled_at` are untouched.
 - `published_at` is preserved, so the platform keeps the record of when the
   slip was originally shown to followers.
-- Hidden slips disappear from `?publicationStatus=published` and from
-  performance.
+- Hidden slips disappear from `GET /api/v1/public/slips` and from performance.
 
 ## Performance
 

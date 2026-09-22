@@ -67,6 +67,11 @@ column and it never leaves the backend.
 | `GET` | `/api/v1/auth/me` | session | `200 { user: { id, email, role } }`, or `401` |
 | `POST` | `/api/v1/auth/logout` | public | destroys the session, clears the cookie, `200 { success: true }` |
 
+Server-rendered admin pages use the same session through a redirect-based gate
+(`require-admin-page.js`): `GET /admin/tips/new` sends anonymous browsers to
+`GET /admin/login?next=…`, and `POST /admin/logout` ends the session from the
+admin shell. See [`admin_ui_create_tip.md`](./admin_ui_create_tip.md).
+
 Login validates input (`400` when email or password is missing), looks the user
 up by lowercase email, rejects unknown, inactive or wrong-password users with
 the **same** generic `401 Invalid credentials` message (no account
@@ -88,16 +93,22 @@ otherwise. It guards:
 ```text
 POST /api/trueodds/tips/import
 POST /api/v1/slips
+GET  /api/v1/slips
+GET  /api/v1/slips/:id
 POST /api/v1/slips/:id/publish
 POST /api/v1/slips/:id/hide
 POST /api/v1/settlement/matches/:sourceMatchId
+GET  /api/v1/settlement/matches
+GET  /api/v1/settlement/matches/:sourceMatchId/preview
+GET  /api/v1/tips
+GET  /api/v1/tips/:id
 ```
 
 Intentionally public (followers/future public site):
 
 ```text
-GET  /api/v1/slips
-GET  /api/v1/slips/:id
+GET  /api/v1/public/slips
+GET  /api/v1/public/slips/:id
 GET  /api/v1/performance
 GET  /api/trueodds/matches/search
 GET  /api/trueodds/matches/:matchId
@@ -106,21 +117,20 @@ GET  /api/trueodds/results
 GET  /api/trueodds/results/:trueOddsId
 ```
 
-### Known public-exposure caveat (not fixed in this task)
+### Slip read model (resolved)
 
-The public slip reads are unfiltered by publication status:
+The earlier caveat - anonymous callers could read draft and hidden slips through
+`GET /api/v1/slips*` - is fixed. Slip management reads now require the admin
+session, and the public surface is published-only:
 
 ```text
-GET /api/v1/slips/5              -> 200 with a draft slip
-GET /api/v1/slips/1              -> 200 with a hidden slip
-GET /api/v1/slips?limit=100      -> includes draft and hidden slips
+GET /api/v1/slips          -> 401 without a session
+GET /api/v1/slips/:id      -> 401 without a session
+GET /api/v1/public/slips   -> 200, published slips only
+GET /api/v1/public/slips/5 -> 404 for a draft or hidden slip
 ```
 
-Fixing this needs a public/private read model (for example: only
-`publication_status = 'published'` for anonymous readers, drafts/hidden for
-sessions). That redesign is deliberately left to a later task; until then,
-treat `GET /api/v1/slips*` as an internal/admin read surface even though it is
-not session protected.
+See [`admin_slips.md`](./admin_slips.md) for the full contract.
 
 ## Cookie behaviour
 

@@ -1,4 +1,5 @@
 import pool from '../db/postgres.js';
+import { toLikePattern } from '../utils/sql-like.js';
 
 export async function createTip(data, db = pool) {
     const result = await db.query(
@@ -194,36 +195,62 @@ export async function listTips(filters = {}, db = pool) {
     const result = await db.query(
         `
         SELECT
-            id,
-            match_id,
-            source_odds_id,
-            source_market_id,
-            source_selection_id,
-            market_code,
-            market_name,
-            selection_code,
-            selection_name,
-            line,
-            odds,
-            result,
-            creation_type,
-            odds_captured_at,
-            published_at,
-            settled_at,
-            created_at,
-            updated_at
-        FROM tips
-        WHERE ($1::varchar IS NULL OR result = $1)
-          AND ($2::varchar IS NULL OR market_code = $2)
-          AND ($3::varchar IS NULL OR creation_type = $3)
-        ORDER BY created_at DESC
-        LIMIT $4
-        OFFSET $5
+            t.id,
+            t.match_id,
+            t.source_odds_id,
+            t.source_market_id,
+            t.source_selection_id,
+            t.market_code,
+            t.market_name,
+            t.selection_code,
+            t.selection_name,
+            t.line,
+            t.odds,
+            t.result,
+            t.creation_type,
+            t.odds_captured_at,
+            t.published_at,
+            t.settled_at,
+            t.created_at,
+            t.updated_at,
+            m.source_match_id,
+            m.starts_at,
+            m.status AS match_status,
+            m.home_score,
+            m.away_score,
+            ht.name AS home_team,
+            at.name AS away_team,
+            c.name AS competition
+        FROM tips t
+        JOIN matches m
+            ON m.id = t.match_id
+        JOIN teams ht
+            ON ht.id = m.home_team_id
+        JOIN teams at
+            ON at.id = m.away_team_id
+        LEFT JOIN competitions c
+            ON c.id = m.competition_id
+        WHERE ($1::varchar IS NULL OR t.result = $1)
+          AND ($2::varchar IS NULL OR t.market_code = $2)
+          AND ($3::varchar IS NULL OR t.creation_type = $3)
+          AND ($4::bigint IS NULL OR t.match_id = $4)
+          AND (
+              $5::varchar IS NULL
+              OR ht.name ILIKE $5 ESCAPE '\\'
+              OR at.name ILIKE $5 ESCAPE '\\'
+              OR t.selection_name ILIKE $5 ESCAPE '\\'
+              OR t.market_name ILIKE $5 ESCAPE '\\'
+          )
+        ORDER BY t.created_at DESC, t.id DESC
+        LIMIT $6
+        OFFSET $7
         `,
         [
             filters.result ?? null,
             filters.marketCode ?? null,
             filters.creationType ?? null,
+            filters.matchId ?? null,
+            toLikePattern(filters.search),
             filters.limit ?? 50,
             filters.offset ?? 0
         ]
@@ -231,6 +258,155 @@ export async function listTips(filters = {}, db = pool) {
 
     return result.rows;
 }
+
+export async function countTips(filters = {}, db = pool) {
+    const result = await db.query(
+        `
+        SELECT COUNT(*)::int AS total
+        FROM tips t
+        JOIN matches m
+            ON m.id = t.match_id
+        JOIN teams ht
+            ON ht.id = m.home_team_id
+        JOIN teams at
+            ON at.id = m.away_team_id
+        LEFT JOIN competitions c
+            ON c.id = m.competition_id
+        WHERE ($1::varchar IS NULL OR t.result = $1)
+          AND ($2::varchar IS NULL OR t.market_code = $2)
+          AND ($3::varchar IS NULL OR t.creation_type = $3)
+          AND ($4::bigint IS NULL OR t.match_id = $4)
+          AND (
+              $5::varchar IS NULL
+              OR ht.name ILIKE $5 ESCAPE '\\'
+              OR at.name ILIKE $5 ESCAPE '\\'
+              OR t.selection_name ILIKE $5 ESCAPE '\\'
+              OR t.market_name ILIKE $5 ESCAPE '\\'
+          )
+        `,
+        [
+            filters.result ?? null,
+            filters.marketCode ?? null,
+            filters.creationType ?? null,
+            filters.matchId ?? null,
+            toLikePattern(filters.search)
+        ]
+    );
+
+    return result.rows[0]?.total ?? 0;
+}
+
+/**
+ * Result counters for the admin status tabs. The `result` filter is
+ * deliberately not applied here so every tab can show its own count.
+ */
+export async function countTipsByResult(filters = {}, db = pool) {
+    const result = await db.query(
+        `
+        SELECT t.result, COUNT(*)::int AS total
+        FROM tips t
+        JOIN matches m
+            ON m.id = t.match_id
+        JOIN teams ht
+            ON ht.id = m.home_team_id
+        JOIN teams at
+            ON at.id = m.away_team_id
+        LEFT JOIN competitions c
+            ON c.id = m.competition_id
+        WHERE ($1::varchar IS NULL OR t.market_code = $1)
+          AND ($2::varchar IS NULL OR t.creation_type = $2)
+          AND ($3::bigint IS NULL OR t.match_id = $3)
+          AND (
+              $4::varchar IS NULL
+              OR ht.name ILIKE $4 ESCAPE '\\'
+              OR at.name ILIKE $4 ESCAPE '\\'
+              OR t.selection_name ILIKE $4 ESCAPE '\\'
+              OR t.market_name ILIKE $4 ESCAPE '\\'
+          )
+        GROUP BY t.result
+        `,
+        [
+            filters.marketCode ?? null,
+            filters.creationType ?? null,
+            filters.matchId ?? null,
+            toLikePattern(filters.search)
+        ]
+    );
+
+    return result.rows;
+}
+
+export async function findTipWithMatchById(id, db = pool) {
+    const result = await db.query(
+        `
+        SELECT
+            t.id,
+            t.match_id,
+            t.source_odds_id,
+            t.source_market_id,
+            t.source_selection_id,
+            t.market_code,
+            t.market_name,
+            t.selection_code,
+            t.selection_name,
+            t.line,
+            t.odds,
+            t.result,
+            t.creation_type,
+            t.odds_captured_at,
+            t.published_at,
+            t.settled_at,
+            t.created_at,
+            t.updated_at,
+            m.source_match_id,
+            m.starts_at,
+            m.status AS match_status,
+            m.home_score,
+            m.away_score,
+            ht.name AS home_team,
+            at.name AS away_team,
+            c.name AS competition
+        FROM tips t
+        JOIN matches m
+            ON m.id = t.match_id
+        JOIN teams ht
+            ON ht.id = m.home_team_id
+        JOIN teams at
+            ON at.id = m.away_team_id
+        LEFT JOIN competitions c
+            ON c.id = m.competition_id
+        WHERE t.id = $1
+        `,
+        [id]
+    );
+
+    return result.rows[0] ?? null;
+}
+
+/**
+ * Duplicate-import guard: the same TrueOdds selection (stable source odds id)
+ * on the same local match is one tip.
+ */
+export async function findTipByMatchAndSourceOddsId(matchId, sourceOddsId, db = pool) {
+    if (!sourceOddsId) {
+        return null;
+    }
+
+    const result = await db.query(
+        `
+        SELECT id, match_id, source_odds_id, result, odds, created_at
+        FROM tips
+        WHERE match_id = $1
+          AND source_odds_id = $2
+        ORDER BY id
+        LIMIT 1
+        `,
+        [matchId, sourceOddsId]
+    );
+
+    return result.rows[0] ?? null;
+}
+
 
 export async function updateTipResult(id, resultValue, db = pool) {
     const result = await db.query(

@@ -348,19 +348,29 @@ test('protected write routes accept a valid admin session', async () => {
     }
 });
 
-test('public read routes still work without a session', async () => {
-    const routes = [
+test('public reads stay open while slip management requires a session', async () => {
+    const publicRoutes = [
+        '/api/v1/performance',
+        '/api/v1/public/slips'
+    ];
+
+    for (const path of publicRoutes) {
+        const response = await request(path);
+
+        assert.equal(response.status, 200, `${path} must stay public`);
+    }
+
+    const adminRoutes = [
         '/api/v1/slips',
         '/api/v1/slips?publicationStatus=published',
         '/api/v1/slips/1',
-        '/api/v1/performance'
+        '/api/v1/tips'
     ];
 
-    for (const path of routes) {
+    for (const path of adminRoutes) {
         const response = await request(path);
 
-        assert.notEqual(response.status, 401, `${path} must stay public`);
-        assert.notEqual(response.status, 403, `${path} must stay public`);
+        assert.equal(response.status, 401, `${path} must require the admin session`);
     }
 });
 

@@ -43,6 +43,13 @@ export async function importTrueOddsTip(req, res) {
 
         res.status(201).json(result);
     } catch (error) {
+        if (error.existingTipId !== undefined && error.existingTipId !== null) {
+            return res.status(error.status || 409).json({
+                error: error.message,
+                existingTipId: error.existingTipId
+            });
+        }
+
         sendError(res, error);
     }
 }

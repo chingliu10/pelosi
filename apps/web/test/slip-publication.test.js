@@ -249,7 +249,7 @@ test('performance counts only published settled slips', async (t) => {
     const db = requireClient(t);
     if (!db) return;
 
-    const before = await getPublishedSlipPerformance(db);
+    const before = await getPublishedSlipPerformance(null, db);
 
     await insertSlip(db, {
         title: `${testTitlePrefix} draft winner`,
@@ -304,7 +304,7 @@ test('performance counts only published settled slips', async (t) => {
         settledAt: '2026-01-05T12:00:00Z'
     });
 
-    const after = await getPublishedSlipPerformance(db);
+    const after = await getPublishedSlipPerformance(null, db);
     const delta = (field) => Number(after[field]) - Number(before[field]);
 
     assert.equal(delta('total_slips'), 2, 'only the published won/lost slips are counted');

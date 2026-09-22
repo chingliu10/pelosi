@@ -1,4 +1,5 @@
 import pool from '../db/postgres.js';
+import { toLikePattern } from '../utils/sql-like.js';
 
 const matchColumns = `
     m.id,
@@ -216,4 +217,97 @@ export async function searchMatches(searchTerm, db = pool) {
     );
 
     return result.rows;
+}
+
+/**
+ * Settlement queue: Pelosi matches that still have pending tips, with how many
+ * pending slips those tips affect. Purely local data - no TrueOdds calls, so
+ * rendering the queue never fans out external requests.
+ */
+export async function listSettlementQueue(filters = {}, db = pool) {
+    const result = await db.query(
+        `
+        SELECT
+            m.id AS match_id,
+            m.source_match_id,
+            ht.name AS home_team,
+            at.name AS away_team,
+            c.name AS competition,
+            m.starts_at,
+            m.status AS local_status,
+            m.home_score,
+            m.away_score,
+            COUNT(DISTINCT t.id)::int AS pending_tip_count,
+            COUNT(DISTINCT s.id)::int AS affected_pending_slip_count
+        FROM matches m
+        JOIN teams ht
+            ON ht.id = m.home_team_id
+        JOIN teams at
+            ON at.id = m.away_team_id
+        LEFT JOIN competitions c
+            ON c.id = m.competition_id
+        JOIN tips t
+            ON t.match_id = m.id
+           AND t.result = 'pending'
+        LEFT JOIN slip_tips st
+            ON st.tip_id = t.id
+        LEFT JOIN slips s
+            ON s.id = st.slip_id
+           AND s.result = 'pending'
+        WHERE ($1::varchar IS NULL OR m.status = $1)
+          AND (
+              $2::varchar IS NULL
+              OR ht.name ILIKE $2 ESCAPE '\\'
+              OR at.name ILIKE $2 ESCAPE '\\'
+              OR c.name ILIKE $2 ESCAPE '\\'
+          )
+        GROUP BY m.id, ht.name, at.name, c.name
+        ORDER BY m.starts_at ASC, m.id ASC
+        LIMIT $3
+        OFFSET $4
+        `,
+        [
+            filters.localStatus ?? null,
+            toLikePattern(filters.search),
+            filters.limit ?? 50,
+            filters.offset ?? 0
+        ]
+    );
+
+    return result.rows;
+}
+
+export async function countSettlementQueue(filters = {}, db = pool) {
+    const result = await db.query(
+        `
+        SELECT COUNT(*)::int AS total
+        FROM (
+            SELECT m.id
+            FROM matches m
+            JOIN teams ht
+                ON ht.id = m.home_team_id
+            JOIN teams at
+                ON at.id = m.away_team_id
+            LEFT JOIN competitions c
+                ON c.id = m.competition_id
+            JOIN tips t
+                ON t.match_id = m.id
+               AND t.result = 'pending'
+            WHERE ($1::varchar IS NULL OR m.status = $1)
+              AND (
+                  $2::varchar IS NULL
+                  OR ht.name ILIKE $2 ESCAPE '\\'
+                  OR at.name ILIKE $2 ESCAPE '\\'
+                  OR c.name ILIKE $2 ESCAPE '\\'
+              )
+            GROUP BY m.id
+        ) AS settlement_queue
+        `,
+        [
+            filters.localStatus ?? null,
+            toLikePattern(filters.search)
+        ]
+    );
+
+    return result.rows[0]?.total ?? 0;
 }

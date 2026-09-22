@@ -13,6 +13,15 @@ POST /api/v1/settlement/matches/:sourceMatchId
 
 `sourceMatchId` is `matches.source_match_id` for the `trueodds` data source.
 
+The admin Settlement Monitor adds two read-only endpoints around the same engine:
+
+```http
+GET /api/v1/settlement/matches                        local queue of matches with pending tips
+GET /api/v1/settlement/matches/:sourceMatchId/preview one TrueOdds result + classification, no writes
+```
+
+See [`admin_settlement_monitor.md`](./admin_settlement_monitor.md).
+
 ## Primary result source
 
 Settlement uses the exact TrueOdds match details endpoint only:
@@ -280,12 +289,14 @@ Importing a tip re-fetches the markets and snapshots the odds server-side:
 POST /api/trueodds/tips/import
 ```
 
-It prefers the deployed bettable feed `GET /api/matches/:id/markets`. That feed
-refuses finished matches ("This match is no longer available for betting."), so
-when it fails Pelosi falls back to the documented
-`GET /api/v1/matches/:matchId/markets`, which still returns the stored markets
-and the final score. Either way the same validation, upsert and odds-snapshot
-code runs, and `marketsSource` in the response records which feed was used.
+It uses the authenticated `GET /api/v1/matches/:matchId/markets` endpoint as the
+authoritative source - the same feed the admin screen displays - and only falls
+back to the deployed `/api/matches/:id/markets` feed when v1 is unavailable or
+does not contain the requested selection. Either way the same validation,
+upsert, duplicate check and odds-snapshot code runs, and `marketsSource` in the
+response records which feed was used. Importing a selection that already exists
+returns `409 Tip already imported` with `existingTipId` instead of creating a
+second row (see [`tips_api_and_admin_manager.md`](./tips_api_and_admin_manager.md)).
 
 ## Implementation map
 

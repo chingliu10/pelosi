@@ -38,7 +38,7 @@ Both are live. Pelosi calls `/api/v1` for search, exact match details, market
 resolution and settlement lookup, and keeps `/api` for the bettable match feed,
 its import odds source and the debug results feed.
 
-Tip import re-fetches the current match markets from TrueOdds immediately before writing anything and snapshots the selected odds from that fresh server-side response. It reads `/api/matches/:trueodds_id/markets` first and falls back to `/api/v1/matches/:matchId/markets` when the match is no longer bettable, so tips can still be imported for matches that finished while Pelosi was offline.
+Tip import re-fetches the current match markets from TrueOdds immediately before writing anything and snapshots the selected odds from that fresh server-side response. The authenticated `/api/v1/matches/:matchId/markets` endpoint is the authoritative source (it is what the admin screen displays); the deployed `/api/matches/:trueodds_id/markets` feed is only used when v1 is unavailable or does not contain the requested selection. The import response reports which feed was used in `marketsSource` and any fallback reason in `importWarnings`. See [`tips_api_and_admin_manager.md`](./tips_api_and_admin_manager.md).
 
 ## Working TrueOdds Endpoints
 
@@ -409,9 +409,10 @@ category_id = sr:category:1
 
 ## Tip Import Rule
 
-Tip import uses the working `/api/matches/:trueodds_id/markets` endpoint, with
-`/api/v1/matches/:matchId/markets` as the fallback for matches that are no
-longer bettable.
+Tip import uses the authenticated `/api/v1/matches/:matchId/markets` endpoint as
+the authoritative source (the same feed the admin screen shows), with the
+deployed `/api/matches/:trueodds_id/markets` feed only as a fallback when v1 is
+unavailable or does not contain the requested selection.
 
 The safe import flow is:
 
@@ -419,14 +420,15 @@ The safe import flow is:
 1. Search match from TrueOdds.
 2. Get markets for the selected match.
 3. Admin selects an odd.
-4. Pelosi re-fetches the match markets from TrueOdds.
+4. Pelosi re-fetches the match markets from TrueOdds v1 (fallback: deployed /api).
 5. Pelosi finds exactly one requested outcome.
 6. Pelosi validates required source IDs.
 7. Pelosi upserts teams, competition, match.
-8. Pelosi creates the tip odds snapshot.
+8. Pelosi rejects the import with 409 when that selection is already imported.
+9. Pelosi creates the tip odds snapshot.
 ```
 
-The `/api/v1` resolve endpoint is still not used by import.
+The `/api/v1` resolve endpoint (single selection) is still not used by import.
 
 ## Tested Example
 

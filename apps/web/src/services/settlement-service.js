@@ -1,7 +1,9 @@
 import pool from '../db/postgres.js';
 import { findDataSourceByCode } from '../repositories/data-source-repository.js';
 import {
+    countSettlementQueue,
     findMatchBySourceMatchId,
+    listSettlementQueue,
     updateMatchScoreAndStatus
 } from '../repositories/match-repository.js';
 import {
@@ -9,6 +11,7 @@ import {
     updateTipResult
 } from '../repositories/tip-repository.js';
 import {
+    findPendingSlipsForMatch,
     findSlipIdsContainingTips,
     findSlipSettlementLegs,
     updateSlipResult
@@ -34,6 +37,92 @@ const responseStatusByClassification = {
     [CLASSIFICATION_STATUSES.VOID]: 'void'
 };
 
+const allowedLocalMatchStatuses = new Set(['scheduled', 'live', 'finished', 'postponed', 'cancelled']);
+const defaultQueueLimit = 50;
+const maxQueueLimit = 100;
+const maxSearchLength = 100;
+
+/**
+ * Settlement queue for the admin monitor: local Pelosi matches that still have
+ * pending tips (and how many pending slips those tips affect).
+ *
+ * Deliberately local-only: the queue never calls TrueOdds, so opening the screen
+ * cannot fan out one external request per match. TrueOdds is only contacted when
+ * the admin explicitly checks one match.
+ */
+export async function getSettlementQueue(filters = {}) {
+    const normalized = normalizeQueueFilters(filters);
+    const rows = await listSettlementQueue(normalized);
+    const total = await countSettlementQueue(normalized);
+
+    return {
+        matches: rows.map(toQueueRow),
+        count: rows.length,
+        total,
+        limit: normalized.limit,
+        offset: normalized.offset,
+        localStatus: normalized.localStatus ?? null,
+        search: normalized.search ?? null
+    };
+}
+
+/**
+ * Read-only preview of one match: fetch the exact TrueOdds v1 result, classify
+ * it with the same classifier the settlement engine uses, and report what the
+ * engine would do - without writing anything.
+ */
+export async function previewMatchSettlement(sourceMatchId, options = {}) {
+    const context = await resolveSettlementContext(sourceMatchId, options);
+    const { match, pendingTips, trueOddsMatch, classification } = context;
+    const matchPlan = planLocalMatchSnapshot(match, classification);
+    const decisions = buildSettlementDecisions(pendingTips, classification);
+    const affectedSlips = await findPendingSlipsForMatch(match.id);
+    const status = responseStatusByClassification[classification.status] ?? 'manual_review';
+    const canAutoSettle = classification.status === CLASSIFICATION_STATUSES.SAFE_FINAL
+        || classification.status === CLASSIFICATION_STATUSES.VOID;
+    const notes = [];
+
+    if (matchPlan.note) {
+        notes.push(matchPlan.note);
+    }
+
+    if (classification.status === CLASSIFICATION_STATUSES.VOID) {
+        notes.push(
+            'Applying this void result marks the pending tips void. Slips with a void leg stay pending and are reported as needing manual void handling.'
+        );
+    }
+
+    if (affectedSlips.length > 0 && classification.status === CLASSIFICATION_STATUSES.SAFE_FINAL) {
+        notes.push('Affected slips are recalculated in the same transaction (lost, won, or still pending).');
+    }
+
+    return {
+        sourceMatchId: context.normalizedSourceMatchId,
+        pelosiMatchId: Number(match.id),
+        status,
+        classification: classification.status,
+        canAutoSettle,
+        actionLabel: classification.status === CLASSIFICATION_STATUSES.SAFE_FINAL
+            ? 'Settle match'
+            : (classification.status === CLASSIFICATION_STATUSES.VOID ? 'Mark tips void' : null),
+        reason: classification.reason,
+        trueOddsEndpoint: trueOddsSettlementEndpoint,
+        trueOdds: summarizeTrueOddsMatch(trueOddsMatch),
+        localMatch: {
+            id: Number(match.id),
+            status: match.status,
+            homeScore: match.home_score === null ? null : Number(match.home_score),
+            awayScore: match.away_score === null ? null : Number(match.away_score)
+        },
+        wouldUpdateLocalMatch: matchPlan.needed,
+        pendingTipCount: pendingTips.length,
+        affectedPendingSlipCount: affectedSlips.length,
+        pendingTips: decisions.map((decision) => toPreviewTip(decision)),
+        affectedSlips: affectedSlips.map(toAffectedSlipSummary),
+        notes
+    };
+}
+
 /**
  * Settle every eligible pending Pelosi tip that belongs to one TrueOdds match.
  *
@@ -44,31 +133,15 @@ const responseStatusByClassification = {
  *   -> if no DB write is needed, return
  *   -> BEGIN, snapshot local match, update tips, recalculate slips, COMMIT
  */
-export async function settleMatchFromTrueOdds(sourceMatchId) {
-    const normalizedSourceMatchId = normalizeSourceMatchId(sourceMatchId);
+export async function settleMatchFromTrueOdds(sourceMatchId, options = {}) {
+    const {
+        normalizedSourceMatchId,
+        match,
+        pendingTips,
+        trueOddsMatch,
+        classification
+    } = await resolveSettlementContext(sourceMatchId, options);
 
-    const source = await findDataSourceByCode('trueodds');
-    if (!source) {
-        throw new Error('trueodds data source does not exist');
-    }
-
-    const match = await findMatchBySourceMatchId(source.id, normalizedSourceMatchId);
-    if (!match) {
-        const error = new Error(`Pelosi match not found for source_match_id ${normalizedSourceMatchId}`);
-        error.status = 404;
-        throw error;
-    }
-
-    const pendingTips = await findPendingTipsByMatchId(match.id);
-
-    // The external HTTP call always happens before the PostgreSQL transaction
-    // is opened, and exactly one request is made per source match id.
-    const trueOddsResponse = await getTrueOddsMatch(normalizedSourceMatchId);
-    const trueOddsMatch = trueOddsResponse?.match ?? null;
-
-    assertTrueOddsMatchIdentity(trueOddsMatch, normalizedSourceMatchId);
-
-    const classification = classifyTrueOddsMatch(trueOddsMatch);
     const notes = [];
     const matchPlan = planLocalMatchSnapshot(match, classification);
     const settlementDecisions = buildSettlementDecisions(pendingTips, classification);
@@ -172,6 +245,48 @@ function normalizeSourceMatchId(sourceMatchId) {
     }
 
     return normalized;
+}
+
+/**
+ * Shared setup for preview and settlement: resolve the local match, read its
+ * pending tips and fetch the exact TrueOdds v1 match detail exactly once.
+ *
+ * `options.fetchMatch` is a test seam (defaults to the real TrueOdds client) so
+ * the engine can be exercised deterministically; production callers never pass
+ * it.
+ */
+async function resolveSettlementContext(sourceMatchId, options = {}) {
+    const fetchMatch = options.fetchMatch ?? getTrueOddsMatch;
+    const normalizedSourceMatchId = normalizeSourceMatchId(sourceMatchId);
+
+    const source = await findDataSourceByCode('trueodds');
+    if (!source) {
+        throw new Error('trueodds data source does not exist');
+    }
+
+    const match = await findMatchBySourceMatchId(source.id, normalizedSourceMatchId);
+    if (!match) {
+        const error = new Error(`Pelosi match not found for source_match_id ${normalizedSourceMatchId}`);
+        error.status = 404;
+        throw error;
+    }
+
+    const pendingTips = await findPendingTipsByMatchId(match.id);
+
+    // The external HTTP call always happens before any PostgreSQL transaction is
+    // opened, and exactly one request is made per source match id.
+    const trueOddsResponse = await fetchMatch(normalizedSourceMatchId);
+    const trueOddsMatch = trueOddsResponse?.match ?? null;
+
+    assertTrueOddsMatchIdentity(trueOddsMatch, normalizedSourceMatchId);
+
+    return {
+        normalizedSourceMatchId,
+        match,
+        pendingTips,
+        trueOddsMatch,
+        classification: classifyTrueOddsMatch(trueOddsMatch)
+    };
 }
 
 /**
@@ -305,6 +420,111 @@ function sameScore(storedValue, trueOddsValue) {
     }
 
     return Number(storedValue) === Number(trueOddsValue);
+}
+
+function normalizeQueueFilters(filters = {}) {
+    const localStatus = filters.localStatus === undefined || filters.localStatus === null || filters.localStatus === ''
+        ? null
+        : String(filters.localStatus).trim().toLowerCase();
+
+    if (localStatus && !allowedLocalMatchStatuses.has(localStatus)) {
+        const error = new Error('Invalid localStatus. Allowed values: scheduled, live, finished, postponed, cancelled');
+        error.status = 400;
+        throw error;
+    }
+
+    const search = filters.search === undefined || filters.search === null || String(filters.search).trim() === ''
+        ? null
+        : String(filters.search).trim();
+
+    if (search && search.length > maxSearchLength) {
+        const error = new Error(`Invalid search. Maximum ${maxSearchLength} characters`);
+        error.status = 400;
+        throw error;
+    }
+
+    const limit = toIntegerOption(filters.limit, defaultQueueLimit, 'limit');
+    const offset = toIntegerOption(filters.offset, 0, 'offset');
+
+    if (limit <= 0 || limit > maxQueueLimit) {
+        const error = new Error(`Invalid limit. Allowed range: 1-${maxQueueLimit}`);
+        error.status = 400;
+        throw error;
+    }
+
+    if (offset < 0) {
+        const error = new Error('Invalid offset. Must be zero or greater');
+        error.status = 400;
+        throw error;
+    }
+
+    return { localStatus, search, limit, offset };
+}
+
+function toIntegerOption(value, fallback, name) {
+    if (value === undefined || value === null || value === '') {
+        return fallback;
+    }
+
+    const number = Number(value);
+
+    if (!Number.isInteger(number)) {
+        const error = new Error(`Invalid ${name}. Must be an integer`);
+        error.status = 400;
+        throw error;
+    }
+
+    return number;
+}
+
+function toQueueRow(row) {
+    return {
+        matchId: Number(row.match_id),
+        sourceMatchId: row.source_match_id,
+        homeTeam: row.home_team,
+        awayTeam: row.away_team,
+        competition: row.competition,
+        startsAt: row.starts_at,
+        localStatus: row.local_status,
+        homeScore: row.home_score === null ? null : Number(row.home_score),
+        awayScore: row.away_score === null ? null : Number(row.away_score),
+        pendingTipCount: Number(row.pending_tip_count),
+        affectedPendingSlipCount: Number(row.affected_pending_slip_count)
+    };
+}
+
+/**
+ * Per-tip preview built from the same decision function the engine uses, so the
+ * UI can never disagree with what settlement would do.
+ */
+function toPreviewTip(decision) {
+    const tip = decision.tip;
+
+    return {
+        id: Number(tip.id),
+        marketCode: tip.market_code,
+        marketName: tip.market_name,
+        selectionCode: tip.selection_code,
+        selectionName: tip.selection_name,
+        line: tip.line === null || tip.line === undefined ? null : Number(tip.line),
+        odds: Number(tip.odds),
+        result: tip.result,
+        willAutoSettle: Boolean(decision.result),
+        predictedResult: decision.result,
+        reason: decision.reason
+    };
+}
+
+function toAffectedSlipSummary(slip) {
+    return {
+        id: Number(slip.id),
+        title: slip.title,
+        result: slip.result,
+        publicationStatus: slip.publication_status,
+        totalOdds: Number(slip.total_odds),
+        stakeUnits: Number(slip.stake_units),
+        legCount: Number(slip.leg_count)
+    };
 }
 
 function skippedTip(tip, reason) {

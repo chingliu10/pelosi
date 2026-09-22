@@ -93,7 +93,10 @@ export async function listSlips(filters = {}, db = pool) {
         WHERE ($1::varchar IS NULL OR s.result = $1)
           AND ($2::varchar IS NULL OR s.publication_status = $2)
           AND ($3::varchar IS NULL OR s.creation_type = $3)
-        ORDER BY s.slip_date DESC, s.id DESC
+          AND ($6::varchar[] IS NULL OR s.result = ANY($6::varchar[]))
+        ${filters.sort === 'settled'
+            ? 'ORDER BY s.settled_at DESC NULLS LAST, s.id DESC'
+            : 'ORDER BY s.slip_date DESC, s.id DESC'}
         LIMIT $4
         OFFSET $5
         `,
@@ -102,7 +105,8 @@ export async function listSlips(filters = {}, db = pool) {
             filters.publicationStatus ?? null,
             filters.creationType ?? null,
             filters.limit ?? 50,
-            filters.offset ?? 0
+            filters.offset ?? 0,
+            filters.results ?? null
         ]
     );
 
@@ -392,6 +396,42 @@ export async function findSlipSettlementLegs(slipIds, db = pool) {
         ORDER BY s.id, st.leg_order
         `,
         [slipIds]
+    );
+
+    return result.rows;
+}
+
+/**
+ * Pending slips that contain at least one pending tip of the given match.
+ * Used by the settlement monitor impact panel.
+ */
+export async function findPendingSlipsForMatch(matchId, db = pool) {
+    const result = await db.query(
+        `
+        SELECT
+            s.id,
+            s.title,
+            s.result,
+            s.publication_status,
+            s.total_odds,
+            s.stake_units,
+            s.slip_date,
+            (
+                SELECT COUNT(*)
+                FROM slip_tips st2
+                WHERE st2.slip_id = s.id
+            ) AS leg_count
+        FROM slips s
+        JOIN slip_tips st
+            ON st.slip_id = s.id
+        JOIN tips t
+            ON t.id = st.tip_id
+        WHERE t.match_id = $1
+          AND s.result = 'pending'
+        GROUP BY s.id
+        ORDER BY s.id
+        `,
+        [matchId]
     );
 
     return result.rows;

@@ -1,0 +1,60 @@
+<section class="page__header page__header--row">
+    <div>
+        <h1 class="page__title">Build slip</h1>
+        <p class="page__subtitle">Select imported tips and create a draft slip.</p>
+    </div>
+    <a class="btn btn--ghost" href="/admin/slips">Back to slips</a>
+</section>
+
+<noscript>
+    <p class="alert alert--pending">This screen needs JavaScript enabled in your browser.</p>
+</noscript>
+
+<div class="workspace">
+    <div class="workspace__main">
+        <section class="card" aria-labelledby="available-heading">
+            <div class="card__header card__header--stack">
+                <div class="tips-toolbar">
+                    <h2 class="visually-hidden" id="available-heading">Available pending tips</h2>
+                    <form class="search search--grow" id="builder-search-form" role="search">
+                        <label class="visually-hidden" for="builder-search-input">Search pending tips</label>
+                        <input
+                            class="input"
+                            id="builder-search-input"
+                            name="search"
+                            type="search"
+                            placeholder="Search pending tips..."
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                        <button class="btn btn--ghost" id="builder-search-button" type="submit">Search</button>
+                    </form>
+                </div>
+                <p class="card__hint">
+                    Only pending tips are listed. A V1 slip cannot contain two tips from the same match.
+                </p>
+            </div>
+
+            <p class="feedback" id="builder-feedback" role="status" aria-live="polite"></p>
+
+            <div class="empty" id="builder-empty" hidden></div>
+
+            <ul class="tips-list" id="available-tips"></ul>
+
+            <div class="pager" id="builder-pager" hidden>
+                <button class="btn btn--ghost btn--sm" id="builder-prev" type="button">Previous</button>
+                <span class="pager__status" id="builder-range"></span>
+                <button class="btn btn--ghost btn--sm" id="builder-next" type="button">Next</button>
+            </div>
+        </section>
+    </div>
+
+    <aside class="workspace__side" aria-labelledby="preview-heading">
+        <section class="card card--sticky">
+            <div class="card__header">
+                <h2 class="card__title" id="preview-heading">Slip preview</h2>
+            </div>
+            <div id="slip-preview"></div>
+        </section>
+    </aside>
+</div>

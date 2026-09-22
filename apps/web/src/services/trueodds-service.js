@@ -12,7 +12,10 @@ import { findSportByCode } from '../repositories/sport-repository.js';
 import { upsertCompetition } from '../repositories/competition-repository.js';
 import { upsertTeam } from '../repositories/team-repository.js';
 import { upsertMatch } from '../repositories/match-repository.js';
-import { createTip } from '../repositories/tip-repository.js';
+import {
+    createTip,
+    findTipByMatchAndSourceOddsId
+} from '../repositories/tip-repository.js';
 
 const allowedMarketFilters = new Set([
     'winner',
@@ -133,8 +136,12 @@ export async function getMatchFromTrueOdds(matchId) {
 export async function importTipFromTrueOddsMarkets(data) {
     validateImportInput(data);
 
-    const { response, marketsSource } = await fetchImportMarkets(data.matchId);
-    const authoritativeSelection = buildImportSelectionFromLegacyMarkets(response, data);
+    const {
+        selection: authoritativeSelection,
+        marketsSource,
+        importWarnings
+    } = await resolveImportSource(data.matchId, data);
+
     validateLegacyImportSourceIds(authoritativeSelection);
 
     const {
@@ -144,6 +151,7 @@ export async function importTipFromTrueOddsMarkets(data) {
     } = authoritativeSelection;
 
     const client = await pool.connect();
+    let duplicateContext = null;
 
     try {
         await client.query('BEGIN');
@@ -207,6 +215,23 @@ export async function importTipFromTrueOddsMarkets(data) {
             client
         );
 
+        duplicateContext = {
+            matchId: match.id,
+            sourceOddsId: selection.event_odds_id ?? null
+        };
+
+        // A TrueOdds selection is only imported once per local match. The unique
+        // index uq_tips_match_source_odds is the backstop for concurrent imports.
+        const existingTip = await findTipByMatchAndSourceOddsId(
+            match.id,
+            selection.event_odds_id ?? null,
+            client
+        );
+
+        if (existingTip) {
+            throw duplicateTipError(existingTip.id);
+        }
+
         const tip = await createTip(
             {
                 matchId: match.id,
@@ -231,6 +256,7 @@ export async function importTipFromTrueOddsMarkets(data) {
         return {
             source,
             marketsSource,
+            importWarnings,
             sport,
             competition,
             homeTeam,
@@ -240,10 +266,31 @@ export async function importTipFromTrueOddsMarkets(data) {
         };
     } catch (error) {
         await client.query('ROLLBACK');
+
+        // Racing imports hit the unique index instead of the check above.
+        if (error?.code === '23505' && duplicateContext) {
+            const conflictingTip = await findTipByMatchAndSourceOddsId(
+                duplicateContext.matchId,
+                duplicateContext.sourceOddsId
+            );
+
+            throw duplicateTipError(conflictingTip?.id ?? null);
+        }
+
         throw error;
     } finally {
         client.release();
     }
+}
+
+function duplicateTipError(existingTipId) {
+    const error = new Error('Tip already imported');
+    error.status = 409;
+    error.existingTipId = existingTipId === null || existingTipId === undefined
+        ? null
+        : Number(existingTipId);
+
+    return error;
 }
 
 function validateImportInput(data) {
@@ -262,33 +309,55 @@ function validateImportInput(data) {
 }
 
 /**
- * Tip import prefers the deployed `/api/matches/:id/markets` endpoint because
- * that is the odds feed the TrueOdds UI serves for bettable matches, but it
- * refuses to serve matches that have already finished ("This match is no
- * longer available for betting.").
+ * The authenticated TrueOdds v1 API is the authoritative import source - it is
+ * the same feed the admin screen displays, so the odds Pelosi snapshots are the
+ * odds the admin saw.
  *
- * The documented `/api/v1/matches/:matchId/markets` endpoint still returns the
- * stored markets (and the final score/result) for finished matches, so it is
- * used as the fallback. The v1 payload is normalized into the same shape the
- * rest of the import pipeline already validates and stores.
+ * The deployed `/api/matches/:id/markets` feed is only used as a fallback when
+ * v1 is unavailable (401/403/404) or does not contain the requested selection.
+ * Either way the response reports which source was used.
  */
-async function fetchImportMarkets(matchId) {
-    try {
-        const response = await getTrueOddsLegacyMatchMarkets(matchId);
+async function resolveImportSource(matchId, request) {
+    const importWarnings = [];
+    let v1Response = null;
 
-        return { response, marketsSource: 'trueodds-live /api/matches/:matchId/markets' };
+    try {
+        v1Response = toLegacyShapedMarketsResponse(await getTrueOddsMatchMarkets(matchId));
     } catch (error) {
         if (!shouldFallbackToLegacyTrueOdds(error)) {
             throw error;
         }
 
-        const response = await getTrueOddsMatchMarkets(matchId);
-
-        return {
-            response: toLegacyShapedMarketsResponse(response),
-            marketsSource: 'trueodds-v1 /api/v1/matches/:matchId/markets'
-        };
+        importWarnings.push(
+            `TrueOdds /api/v1 markets returned ${error.status}, so Pelosi fell back to the deployed /api markets feed.`
+        );
     }
+
+    if (v1Response) {
+        try {
+            return {
+                selection: buildImportSelectionFromLegacyMarkets(v1Response, request),
+                marketsSource: 'trueodds-v1 /api/v1/matches/:matchId/markets',
+                importWarnings
+            };
+        } catch (error) {
+            if (error.status !== 404) {
+                throw error;
+            }
+
+            importWarnings.push(
+                'Requested selection was not present in the TrueOdds v1 markets response, so Pelosi fell back to the deployed /api markets feed.'
+            );
+        }
+    }
+
+    const legacyResponse = await getTrueOddsLegacyMatchMarkets(matchId);
+
+    return {
+        selection: buildImportSelectionFromLegacyMarkets(legacyResponse, request),
+        marketsSource: 'trueodds-live /api/matches/:matchId/markets',
+        importWarnings
+    };
 }
 
 function toLegacyShapedMarketsResponse(response) {

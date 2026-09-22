@@ -1,0 +1,55 @@
+<section class="page__header page__header--row">
+    <div>
+        <h1 class="page__title">Slips</h1>
+        <p class="page__subtitle">Review, publish and manage betting slips.</p>
+    </div>
+    <a class="btn btn--primary" href="/admin/slips/new">+ Build slip</a>
+</section>
+
+<noscript>
+    <p class="alert alert--pending">This screen needs JavaScript enabled in your browser.</p>
+</noscript>
+
+<div class="workspace">
+    <div class="workspace__main">
+        <section class="card" aria-labelledby="slips-heading">
+            <div class="card__header card__header--stack">
+                <div class="tips-toolbar tips-toolbar--between">
+                    <h2 class="visually-hidden" id="slips-heading">Slips</h2>
+                    <div class="tabs" id="slip-filters" role="tablist" aria-label="Filter slips by publication status"></div>
+                    <div class="field field--inline">
+                        <label class="field__label" for="slip-result-filter">Result</label>
+                        <select class="input input--select" id="slip-result-filter">
+                            <option value="all">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="won">Won</option>
+                            <option value="lost">Lost</option>
+                            <option value="void">Void</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <p class="feedback" id="slips-feedback" role="status" aria-live="polite"></p>
+
+            <div class="empty" id="slips-empty" hidden></div>
+
+            <ul class="slips-list" id="slips-list"></ul>
+
+            <div class="pager" id="slips-pager" hidden>
+                <button class="btn btn--ghost btn--sm" id="slips-prev" type="button">Previous</button>
+                <span class="pager__status" id="slips-range"></span>
+                <button class="btn btn--ghost btn--sm" id="slips-next" type="button">Next</button>
+            </div>
+        </section>
+    </div>
+
+    <aside class="workspace__side" aria-labelledby="slip-detail-heading">
+        <section class="card card--sticky">
+            <div class="card__header">
+                <h2 class="card__title" id="slip-detail-heading">Slip details</h2>
+            </div>
+            <div id="slip-detail"></div>
+        </section>
+    </aside>
+</div>

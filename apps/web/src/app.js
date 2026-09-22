@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
+import { engine } from 'express-handlebars';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createSessionMiddleware } from './config/session.js';
 import {
     getTrueOddsMatch,
@@ -10,12 +13,26 @@ import {
     searchTrueOddsMatches
 } from './controllers/trueodds-controller.js';
 import { requireAuth } from './middleware/require-auth.js';
+import adminRoutes from './routes/admin/admin-routes.js';
 import authRoutes from './routes/api/auth-routes.js';
 import performanceRoutes from './routes/api/performance-routes.js';
+import publicSlipRoutes from './routes/api/public-slip-routes.js';
 import settlementRoutes from './routes/api/settlement-routes.js';
 import slipRoutes from './routes/api/slip-routes.js';
+import tipsRoutes from './routes/api/tips-routes.js';
 
 const app = express();
+
+const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+app.engine('hbs', engine({
+    extname: '.hbs',
+    defaultLayout: false,
+    layoutsDir: path.join(webRoot, 'views', 'layouts'),
+    partialsDir: path.join(webRoot, 'views', 'partials')
+}));
+app.set('view engine', 'hbs');
+app.set('views', path.join(webRoot, 'views'));
 
 if (process.env.NODE_ENV === 'production') {
     // Required for secure cookies to be sent when running behind a proxy.
@@ -25,20 +42,30 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(createSessionMiddleware());
+app.use(express.static(path.join(webRoot, 'public')));
 
 app.get('/', (req, res) => {
     res.send('Pelosi server is running');
 });
 
+// Server-rendered admin screens (session protected, no TrueOdds calls here).
+app.use('/admin', adminRoutes);
+
 // Admin sessions (browser -> Pelosi). Separate from the TrueOdds API key,
 // which is only ever used server-side (Pelosi -> TrueOdds).
 app.use('/api/v1/auth', authRoutes);
 
-// Slip reads are public; slip writes require an admin session.
+// Slip management is admin-only (reads and writes).
 app.use('/api/v1/slips', slipRoutes);
+
+// Public follower API: published slips only.
+app.use('/api/v1/public/slips', publicSlipRoutes);
 
 // Public performance/history reads.
 app.use('/api/v1/performance', performanceRoutes);
+
+// Admin tips read API (Tips Manager + future slip builder).
+app.use('/api/v1/tips', tipsRoutes);
 
 // Settlement is admin-only.
 app.use('/api/v1/settlement', settlementRoutes);

@@ -1,0 +1,24 @@
+<section class="page__header page__header--narrow">
+    <h1 class="page__title">Sign in</h1>
+    <p class="page__subtitle">Admin access to Wachimba Odds.</p>
+</section>
+
+<div class="narrow">
+    <section class="card">
+        <form class="form" id="login-form" data-next="{{nextPath}}" novalidate>
+            <div class="field">
+                <label class="field__label" for="login-email">Email</label>
+                <input class="input" id="login-email" name="email" type="email" autocomplete="username" required>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="login-password">Password</label>
+                <input class="input" id="login-password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+
+            <button class="btn btn--primary btn--block" id="login-button" type="submit">Sign in</button>
+        </form>
+
+        <p class="feedback" id="login-feedback" role="status" aria-live="polite"></p>
+    </section>
+</div>

@@ -1,0 +1,74 @@
+<section class="page__header">
+    <h1 class="page__title">Create tip</h1>
+    <p class="page__subtitle">Search TrueOdds, choose a match and import one betting selection.</p>
+</section>
+
+<noscript>
+    <p class="alert alert--pending">This screen needs JavaScript enabled in your browser.</p>
+</noscript>
+
+<div class="workspace">
+    <div class="workspace__main">
+        <section class="card" aria-labelledby="search-heading">
+            <div class="card__header">
+                <div>
+                    <h2 class="card__title" id="search-heading">Search TrueOdds matches</h2>
+                    <p class="card__hint">Upcoming matches only. Try a team name such as “Brisbane”.</p>
+                </div>
+            </div>
+
+            <form class="search" id="search-form" role="search">
+                <label class="visually-hidden" for="search-input">Search team or match</label>
+                <input
+                    class="input"
+                    id="search-input"
+                    name="q"
+                    type="search"
+                    placeholder="Search team or match..."
+                    autocomplete="off"
+                    spellcheck="false"
+                    required
+                >
+                <button class="btn btn--primary" id="search-button" type="submit">Search</button>
+            </form>
+
+            <p class="feedback" id="search-feedback" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="card" id="results-card" aria-labelledby="results-heading" hidden>
+            <div class="card__header">
+                <h2 class="card__title" id="results-heading">Matches</h2>
+                <span class="count" id="results-count"></span>
+            </div>
+            <ul class="match-list" id="results-list"></ul>
+            <p class="empty" id="results-empty" hidden>No matches found. Try a different team name.</p>
+        </section>
+
+        <section class="card" id="markets-card" aria-labelledby="markets-heading" hidden>
+            <div class="card__header">
+                <div>
+                    <h2 class="card__title" id="markets-heading">Markets</h2>
+                    <p class="card__hint">Pick one outcome to preview the tip.</p>
+                </div>
+            </div>
+
+            <div class="match-summary" id="match-summary"></div>
+
+            <div class="tabs" id="market-tabs" role="tablist" aria-label="Market categories"></div>
+
+            <div class="market-groups" id="market-groups"></div>
+
+            <p class="empty" id="markets-empty" hidden>No markets available for this match.</p>
+            <p class="feedback" id="markets-feedback" role="status" aria-live="polite"></p>
+        </section>
+    </div>
+
+    <aside class="workspace__side" aria-labelledby="preview-heading">
+        <section class="card card--sticky">
+            <div class="card__header">
+                <h2 class="card__title" id="preview-heading">Selected tip</h2>
+            </div>
+            <div id="preview"></div>
+        </section>
+    </aside>
+</div>

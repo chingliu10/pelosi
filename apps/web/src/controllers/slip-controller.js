@@ -1,5 +1,7 @@
 import {
     createSlip,
+    getPublishedSlipById,
+    getPublishedSlips,
     getSlipById,
     getSlips,
     hideSlip as hideSlipRecord,
@@ -11,6 +13,35 @@ export async function listSlips(req, res) {
         const slips = await getSlips(req.query);
 
         res.json(slips);
+    } catch (error) {
+        sendError(res, error);
+    }
+}
+
+/**
+ * Public slip reads: published slips only, no session required.
+ */
+export async function listPublishedSlips(req, res) {
+    try {
+        const slips = await getPublishedSlips(req.query);
+
+        res.json(slips);
+    } catch (error) {
+        sendError(res, error);
+    }
+}
+
+export async function getPublishedSlip(req, res) {
+    try {
+        const slip = await getPublishedSlipById(req.params.id);
+
+        if (!slip) {
+            return res.status(404).json({
+                error: 'Slip not found'
+            });
+        }
+
+        res.json(slip);
     } catch (error) {
         sendError(res, error);
     }

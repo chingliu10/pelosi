@@ -28,11 +28,37 @@ export async function getSlipById(slipId) {
 }
 
 /**
- * Slip listing used by the admin list and by the public history query
- * (`?publicationStatus=published`). Returns light rows with a leg count, not
- * the nested tip structure - that stays on GET /api/v1/slips/:id.
+ * Admin slip listing: every publication status is visible to a signed-in admin.
+ * Returns light rows with a leg count, not the nested tip structure - that
+ * stays on GET /api/v1/slips/:id.
  */
 export async function getSlips(filters = {}) {
+    return listSlipSummaries(filters);
+}
+
+/**
+ * Public slip listing: published slips only. Draft and hidden slips are never
+ * returned, whatever an anonymous caller asks for.
+ */
+export async function getPublishedSlips(filters = {}) {
+    return listSlipSummaries({ ...filters, publicationStatus: 'published' });
+}
+
+/**
+ * Public slip detail. A draft or hidden slip is treated as not found so the
+ * public surface cannot confirm that it exists.
+ */
+export async function getPublishedSlipById(slipId) {
+    const slip = await getSlipById(slipId);
+
+    if (!slip || slip.publicationStatus !== 'published') {
+        return null;
+    }
+
+    return slip;
+}
+
+async function listSlipSummaries(filters) {
     const normalizedFilters = normalizeSlipListFilters(filters);
     const rows = await listSlips(normalizedFilters);
 
@@ -42,7 +68,9 @@ export async function getSlips(filters = {}) {
         limit: normalizedFilters.limit,
         offset: normalizedFilters.offset,
         publicationStatus: normalizedFilters.publicationStatus ?? null,
-        result: normalizedFilters.result ?? null
+        result: normalizedFilters.result ?? null,
+        results: normalizedFilters.results ?? null,
+        sort: normalizedFilters.sort
     };
 }
 
@@ -60,6 +88,10 @@ export async function createSlip(data) {
 
         const tipsById = new Map(tips.map((tip) => [String(tip.id), tip]));
         const orderedTips = uniqueTipIds.map((tipId) => tipsById.get(String(tipId)));
+
+        validateTipsArePending(orderedTips);
+        validateDistinctMatches(orderedTips);
+
         const totalOdds = calculateTotalOdds(orderedTips);
 
         const slip = await createSlipRecord(
@@ -161,15 +193,26 @@ export async function getFlatSlipById(id) {
 
 function normalizeSlipListFilters(filters = {}) {
     const publicationStatus = normalizeFilterValue(filters.publicationStatus);
-    const result = normalizeFilterValue(filters.result);
+    const requestedResult = normalizeFilterValue(filters.result);
     const creationType = normalizeFilterValue(filters.creationType);
+    const sort = normalizeFilterValue(filters.sort) ?? 'slip_date';
+
+    if (!['slip_date', 'settled'].includes(sort)) {
+        throw badRequest('Invalid sort. Allowed values: slip_date, settled');
+    }
+
+    // `result=settled` is the published settled-slip shorthand used by the
+    // performance screen (recent results need won and lost together).
+    const settledOnly = requestedResult === 'settled';
+    const result = settledOnly ? null : requestedResult;
+    const results = settledOnly ? ['won', 'lost'] : null;
 
     if (publicationStatus && !allowedPublicationStatuses.has(publicationStatus)) {
         throw badRequest('Invalid publicationStatus. Allowed values: draft, published, hidden');
     }
 
     if (result && !allowedSlipResults.has(result)) {
-        throw badRequest('Invalid result. Allowed values: pending, won, lost, void');
+        throw badRequest('Invalid result. Allowed values: pending, won, lost, void, settled');
     }
 
     if (creationType && !allowedCreationTypes.has(creationType)) {
@@ -187,7 +230,7 @@ function normalizeSlipListFilters(filters = {}) {
         throw badRequest('Invalid offset. Must be zero or greater');
     }
 
-    return { publicationStatus, result, creationType, limit, offset };
+    return { publicationStatus, result, results, creationType, sort, limit, offset };
 }
 
 function normalizeFilterValue(value) {
@@ -235,21 +278,21 @@ function badRequest(message) {
 
 function validateSlipInput(data) {
     if (!data || !Array.isArray(data.tipIds)) {
-        throw new Error('tipIds is required');
+        throw badRequest('tipIds is required');
     }
 
     if (data.tipIds.length === 0) {
-        throw new Error('At least one tipId is required');
+        throw badRequest('At least one tipId is required');
     }
 
     for (const tipId of data.tipIds) {
         if (!Number.isInteger(Number(tipId)) || Number(tipId) <= 0) {
-            throw new Error('tipIds must contain positive integer IDs');
+            throw badRequest('tipIds must contain positive integer IDs');
         }
     }
 
     if (data.creationType && !allowedCreationTypes.has(data.creationType)) {
-        throw new Error('Invalid creation type');
+        throw badRequest('Invalid creation type');
     }
 
     return data.tipIds.map((tipId) => Number(tipId));
@@ -261,7 +304,7 @@ function ensureUniqueTipIds(tipIds) {
 
     for (const tipId of tipIds) {
         if (seen.has(tipId)) {
-            throw new Error('Duplicate tipIds are not allowed');
+            throw badRequest('Duplicate tipIds are not allowed');
         }
 
         seen.add(tipId);
@@ -276,7 +319,42 @@ function validateAllTipsFound(tipIds, tips) {
     const missingIds = tipIds.filter((tipId) => !foundIds.has(tipId));
 
     if (missingIds.length > 0) {
-        throw new Error(`Tip IDs not found: ${missingIds.join(', ')}`);
+        throw badRequest(`Tip IDs not found: ${missingIds.join(', ')}`);
+    }
+}
+
+/**
+ * A new live slip is built from open selections only. Settled (won/lost) and
+ * void tips must never be smuggled into a fresh slip.
+ */
+function validateTipsArePending(tips) {
+    const notPending = tips.filter((tip) => tip.result !== 'pending');
+
+    if (notPending.length > 0) {
+        const summary = notPending.map((tip) => `${tip.id} (${tip.result})`).join(', ');
+
+        throw badRequest(`Only pending tips can be added to a new slip. Not pending: ${summary}`);
+    }
+}
+
+/**
+ * V1 slips are ordinary accumulators, so every leg must come from a different
+ * match. Same-game combinations are not supported yet.
+ */
+function validateDistinctMatches(tips) {
+    const matchesByMatchId = new Map();
+
+    for (const tip of tips) {
+        const matchId = String(tip.match_id);
+        const existing = matchesByMatchId.get(matchId);
+
+        if (existing) {
+            throw badRequest(
+                `A slip cannot contain multiple tips from the same match (tips ${existing.id} and ${tip.id} share match ${matchId})`
+            );
+        }
+
+        matchesByMatchId.set(matchId, tip);
     }
 }
 

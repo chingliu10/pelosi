@@ -1,0 +1,72 @@
+<section class="page__header page__header--row">
+    <div>
+        <h1 class="page__title">Settlement</h1>
+        <p class="page__subtitle">Review pending match results and settle tips and slips safely.</p>
+    </div>
+    <div class="page__header-actions">
+        <button class="btn btn--ghost" id="queue-refresh" type="button">Refresh queue</button>
+    </div>
+</section>
+
+<noscript>
+    <p class="alert alert--pending">This screen needs JavaScript enabled in your browser.</p>
+</noscript>
+
+<div class="workspace">
+    <div class="workspace__main">
+        <section class="card" aria-labelledby="queue-heading">
+            <div class="card__header card__header--stack">
+                <h2 class="visually-hidden" id="queue-heading">Settlement queue</h2>
+                <div class="tips-toolbar tips-toolbar--between">
+                    <form class="search search--grow" id="queue-search-form" role="search">
+                        <label class="visually-hidden" for="queue-search-input">Search the settlement queue</label>
+                        <input
+                            class="input"
+                            id="queue-search-input"
+                            name="search"
+                            type="search"
+                            placeholder="Search team or competition..."
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                        <button class="btn btn--ghost" id="queue-search-button" type="submit">Search</button>
+                    </form>
+                    <div class="field field--inline">
+                        <label class="field__label" for="queue-status-filter">Local status</label>
+                        <select class="input input--select" id="queue-status-filter">
+                            <option value="all">All</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="live">Live</option>
+                            <option value="finished">Finished</option>
+                        </select>
+                    </div>
+                </div>
+                <p class="card__hint">
+                    Local Pelosi matches that still have pending tips. TrueOdds is only contacted when you
+                    check one match.
+                </p>
+            </div>
+
+            <p class="feedback" id="queue-feedback" role="status" aria-live="polite"></p>
+
+            <div class="empty" id="queue-empty" hidden></div>
+
+            <ul class="queue-list" id="queue-list"></ul>
+
+            <div class="pager" id="queue-pager" hidden>
+                <button class="btn btn--ghost btn--sm" id="queue-prev" type="button">Previous</button>
+                <span class="pager__status" id="queue-range"></span>
+                <button class="btn btn--ghost btn--sm" id="queue-next" type="button">Next</button>
+            </div>
+        </section>
+    </div>
+
+    <aside class="workspace__side" aria-labelledby="result-heading">
+        <section class="card card--sticky">
+            <div class="card__header">
+                <h2 class="card__title" id="result-heading">Match result</h2>
+            </div>
+            <div id="result-panel"></div>
+        </section>
+    </aside>
+</div>

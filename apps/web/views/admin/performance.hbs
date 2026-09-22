@@ -1,0 +1,58 @@
+<section class="page__header page__header--row">
+    <div>
+        <h1 class="page__title">Performance</h1>
+        <p class="page__subtitle">Track published betting results, profit and ROI.</p>
+    </div>
+    <div class="page__header-actions">
+        <div class="tabs" id="performance-range" role="tablist" aria-label="Performance time range"></div>
+    </div>
+</section>
+
+<noscript>
+    <p class="alert alert--pending">This screen needs JavaScript enabled in your browser.</p>
+</noscript>
+
+<section class="card" aria-labelledby="metrics-heading">
+    <h2 class="visually-hidden" id="metrics-heading">Headline metrics</h2>
+    <p class="feedback" id="metrics-feedback" role="status" aria-live="polite"></p>
+    <div class="empty" id="metrics-empty" hidden></div>
+    <div class="metric-grid" id="metric-cards"></div>
+</section>
+
+<div class="workspace">
+    <div class="workspace__main">
+        <section class="card" aria-labelledby="trend-heading">
+            <div class="card__header">
+                <div>
+                    <h2 class="card__title" id="trend-heading">Cumulative profit</h2>
+                    <p class="card__hint" id="trend-hint">Published settled slips, one point per day.</p>
+                </div>
+            </div>
+            <p class="feedback" id="trend-feedback" role="status" aria-live="polite"></p>
+            <div class="empty" id="trend-empty" hidden></div>
+            <div class="chart" id="trend-chart"></div>
+        </section>
+
+        <section class="card" aria-labelledby="recent-heading">
+            <div class="card__header">
+                <div>
+                    <h2 class="card__title" id="recent-heading">Recent settled slips</h2>
+                    <p class="card__hint">Newest published slips with a won or lost result.</p>
+                </div>
+                <span class="count" id="recent-count"></span>
+            </div>
+            <p class="feedback" id="recent-feedback" role="status" aria-live="polite"></p>
+            <div class="empty" id="recent-empty" hidden></div>
+            <ul class="slips-list" id="recent-list"></ul>
+        </section>
+    </div>
+
+    <aside class="workspace__side" aria-labelledby="breakdown-heading">
+        <section class="card card--sticky">
+            <div class="card__header">
+                <h2 class="card__title" id="breakdown-heading">Wins vs losses</h2>
+            </div>
+            <div id="breakdown-panel"></div>
+        </section>
+    </aside>
+</div>

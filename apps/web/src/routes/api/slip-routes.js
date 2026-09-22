@@ -10,11 +10,11 @@ import { requireAuth } from '../../middleware/require-auth.js';
 
 const router = Router();
 
-// Public read routes.
-router.get('/', listSlips);
-router.get('/:id', getSlip);
+// Admin slip management: reads and writes both require the admin session.
+// Anonymous published-only reads live on /api/v1/public/slips.
+router.get('/', requireAuth, listSlips);
+router.get('/:id', requireAuth, getSlip);
 
-// Admin write routes.
 router.post('/', requireAuth, createSlipController);
 router.post('/:id/publish', requireAuth, publishSlip);
 router.post('/:id/hide', requireAuth, hideSlip);
