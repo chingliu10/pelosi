@@ -1,7 +1,7 @@
 <section class="page__header page__header--row">
     <div>
         <h1 class="page__title">Build slip</h1>
-        <p class="page__subtitle">Select imported tips and create a draft slip.</p>
+        <p class="page__subtitle">Search TrueOdds, add selections to your slip, then save a draft.</p>
     </div>
     <a class="btn btn--ghost" href="/admin/slips">Back to slips</a>
 </section>
@@ -15,15 +15,15 @@
         <section class="card" aria-labelledby="available-heading">
             <div class="card__header card__header--stack">
                 <div class="tips-toolbar">
-                    <h2 class="visually-hidden" id="available-heading">Available pending tips</h2>
+                    <h2 class="visually-hidden" id="available-heading">Search TrueOdds</h2>
                     <form class="search search--grow" id="builder-search-form" role="search">
-                        <label class="visually-hidden" for="builder-search-input">Search pending tips</label>
+                        <label class="visually-hidden" for="builder-search-input">Search TrueOdds matches</label>
                         <input
                             class="input"
                             id="builder-search-input"
                             name="search"
                             type="search"
-                            placeholder="Search pending tips..."
+                            placeholder="Search team or match..."
                             autocomplete="off"
                             spellcheck="false"
                         >
@@ -31,28 +31,37 @@
                     </form>
                 </div>
                 <p class="card__hint">
-                    Only pending tips are listed. A V1 slip cannot contain two tips from the same match.
+                    Add one selection for a Single, or combine selections from different matches for a Double, Treble or Accumulator.
                 </p>
             </div>
 
             <p class="feedback" id="builder-feedback" role="status" aria-live="polite"></p>
 
-            <div class="empty" id="builder-empty" hidden></div>
+            <section class="card card--nested" id="builder-results-card" hidden>
+                <div class="card__header">
+                    <h2 class="card__title">Matches</h2>
+                    <span class="card__hint" id="builder-results-count"></span>
+                </div>
+                <p class="empty" id="builder-results-empty" hidden>No matches found.</p>
+                <ul class="match-list" id="builder-results-list"></ul>
+            </section>
 
-            <ul class="tips-list" id="available-tips"></ul>
-
-            <div class="pager" id="builder-pager" hidden>
-                <button class="btn btn--ghost btn--sm" id="builder-prev" type="button">Previous</button>
-                <span class="pager__status" id="builder-range"></span>
-                <button class="btn btn--ghost btn--sm" id="builder-next" type="button">Next</button>
-            </div>
+            <section class="card card--nested" id="builder-markets-card" hidden>
+                <div class="card__header card__header--stack">
+                    <h2 class="card__title">Markets</h2>
+                    <div class="match-summary" id="builder-match-summary"></div>
+                </div>
+                <p class="feedback" id="builder-markets-feedback" role="status" aria-live="polite"></p>
+                <p class="empty" id="builder-markets-empty" hidden>No markets available for this match.</p>
+                <div class="market-groups" id="builder-market-groups"></div>
+            </section>
         </section>
     </div>
 
     <aside class="workspace__side" aria-labelledby="preview-heading">
         <section class="card card--sticky">
             <div class="card__header">
-                <h2 class="card__title" id="preview-heading">Slip preview</h2>
+                <h2 class="card__title" id="preview-heading">Your slip</h2>
             </div>
             <div id="slip-preview"></div>
         </section>

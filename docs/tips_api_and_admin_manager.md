@@ -69,8 +69,10 @@ GET /api/v1/tips
 GET /api/v1/tips/:id
 ```
 
-Both require the admin session (`401 {"error":"Authentication required"}`
-otherwise) because tips are internal data; there is no public tips contract.
+Both require the admin session (`401 {"error":"Authentication required"}`)
+otherwise because tips are internal data. The public customer-safe contract is
+separate: `GET /api/v1/public/tips`, documented in
+[`public_tips.md`](./public_tips.md).
 
 ### Filters
 
@@ -193,6 +195,6 @@ apps/web/test/tips-api.test.js
 
 ## Not built yet
 
-Editing or deleting tips from the manager, and any public tips surface. The slip
-builder and slip manager now exist ([`admin_slips.md`](./admin_slips.md)), as do
-the settlement monitor, the performance screen and the admin dashboard.
+Editing or deleting tips from the manager. The public Today's Tips surface now
+exists, but public tip detail UI, public slips, subscriptions and member accounts
+are later tasks.

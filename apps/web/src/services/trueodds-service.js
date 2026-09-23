@@ -283,6 +283,62 @@ export async function importTipFromTrueOddsMarkets(data) {
     }
 }
 
+export async function resolveTrueOddsSelectionForSlip(data) {
+    validateImportInput(data);
+
+    const {
+        selection: authoritativeSelection,
+        marketsSource,
+        importWarnings
+    } = await resolveImportSource(data.matchId, data);
+
+    validateLegacyImportSourceIds(authoritativeSelection);
+
+    return toResolvedSelection(authoritativeSelection, {
+        marketsSource,
+        importWarnings
+    });
+}
+
+export function toResolvedSelection(authoritativeSelection, meta = {}) {
+    const { match, market, selection } = authoritativeSelection;
+
+    return {
+        match: {
+            sourceMatchId: match.trueodds_id,
+            eventId: match.event_id,
+            sportName: match.sport_name,
+            startsAt: match.start_time,
+            country: match.country ?? null,
+            sourceCompetitionId: match.tournament_id,
+            competitionName: match.league,
+            homeTeamId: match.home_team_id,
+            homeTeamName: match.home_team_name,
+            awayTeamId: match.away_team_id,
+            awayTeamName: match.away_team_name,
+            status: normalizeMatchStatus(match.match_status),
+            homeScore: match.home_score ?? null,
+            awayScore: match.away_score ?? null
+        },
+        market: {
+            sourceMarketId: marketCompositeIdFromLegacy(market),
+            code: inferLegacyMarketCode(market),
+            name: market.market_title || market.market_name,
+            line: inferLine(market.market_specifier)
+        },
+        selection: {
+            sourceOddsId: selection.event_odds_id,
+            sourceSelectionId: selection.outcome_id ?? null,
+            code: inferLegacySelectionCode(selection),
+            name: selection.pick_team || selection.outcome_desc,
+            odds: Number(selection.odds),
+            oddsCapturedAt: selection.odds_captured_at ?? selection.last_fetched_at ?? null
+        },
+        marketsSource: meta.marketsSource ?? null,
+        importWarnings: meta.importWarnings ?? []
+    };
+}
+
 function duplicateTipError(existingTipId) {
     const error = new Error('Tip already imported');
     error.status = 409;

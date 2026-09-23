@@ -23,6 +23,7 @@ Publication is deliberately independent of settlement.
 | `POST` | `/api/v1/slips/:id/hide` | Hide a slip without deleting it |
 | `GET` | `/api/v1/public/slips` | Public list: **published only** |
 | `GET` | `/api/v1/public/slips/:id` | Public detail: published only, otherwise `404` |
+| `GET` | `/api/v1/public/tips` | Public tips visible through currently published slips only |
 | `GET` | `/api/v1/performance` | Public ROI/profit/win-rate derived from published slips |
 | `GET` | `/api/v1/performance/history` | Public daily cumulative-profit trend (see [`admin_performance.md`](./admin_performance.md)) |
 
@@ -186,6 +187,28 @@ Field names map to the metric names used elsewhere in the project:
 The metrics are derived from the `slips` ledger in a single aggregate query in
 `apps/web/src/repositories/performance-repository.js`. There is no performance
 table.
+
+## Public tip visibility
+
+There is no complete individual tip publication workflow yet. For the public
+site, a tip is visible only when it is attached to at least one slip whose
+current `publication_status = 'published'`:
+
+```sql
+tips
+JOIN slip_tips
+JOIN slips
+WHERE slips.publication_status = 'published'
+```
+
+Draft slips and hidden slips never make their tips public. If a published slip
+is later hidden, any tip that was public only through that slip disappears from
+`GET /api/v1/public/tips`; if the same tip is still attached to another
+published slip it remains public. If multiple published slips contain the same
+tip, the public API returns that tip once.
+
+The public tips API uses stored Pelosi odds snapshots from `tips.odds`. It never
+fetches current TrueOdds odds. See [`public_tips.md`](./public_tips.md).
 
 ## Error handling
 

@@ -1,4 +1,9 @@
 import pool from '../db/postgres.js';
+import {
+    appTimezone,
+    assertValidDateString,
+    todayInAppTimezone
+} from '../config/app-timezone.js';
 import { findTipsByIds } from '../repositories/tip-repository.js';
 import {
     attachTipsToSlip,
@@ -11,6 +16,7 @@ import {
     publishSlip as publishSlipRecord,
     updateSlipResult
 } from '../repositories/slip-repository.js';
+import { slipTypeForCount } from '../utils/slip-type.js';
 
 const allowedPublicationStatuses = new Set(['draft', 'published', 'hidden']);
 const allowedSlipResults = new Set(['pending', 'won', 'lost', 'void']);
@@ -42,7 +48,39 @@ export async function getSlips(filters = {}) {
  * returned, whatever an anonymous caller asks for.
  */
 export async function getPublishedSlips(filters = {}) {
-    return listSlipSummaries({ ...filters, publicationStatus: 'published' });
+    const timezone = appTimezone();
+    const historyScope = normalizeFilterValue(filters.scope) === 'history';
+    const publicationDate = historyScope && (filters.date === undefined || filters.date === null || filters.date === '')
+        ? null
+        : (filters.date === undefined || filters.date === null || filters.date === ''
+        ? todayInAppTimezone(new Date(), timezone)
+        : assertValidDateString(filters.date));
+    const summaries = await listSlipSummaries({
+        ...filters,
+        publicationDate,
+        publicationStatus: 'published',
+        sort: normalizeFilterValue(filters.sort) ?? 'published',
+        timezone
+    });
+
+    const {
+        publicationStatus,
+        result,
+        results,
+        sort,
+        ...publicSummaries
+    } = summaries;
+    const publicResult = filters.result === undefined || filters.result === null || filters.result === ''
+        ? 'all'
+        : String(filters.result).trim().toLowerCase();
+
+    return {
+        ...publicSummaries,
+        slips: summaries.slips.map(toPublicSlipListRow),
+        date: publicationDate,
+        result: publicResult,
+        timezone
+    };
 }
 
 /**
@@ -56,7 +94,7 @@ export async function getPublishedSlipById(slipId) {
         return null;
     }
 
-    return slip;
+    return toPublicSlipDetail(slip);
 }
 
 async function listSlipSummaries(filters) {
@@ -200,14 +238,14 @@ function normalizeSlipListFilters(filters = {}) {
     const creationType = normalizeFilterValue(filters.creationType);
     const sort = normalizeFilterValue(filters.sort) ?? 'slip_date';
 
-    if (!['slip_date', 'settled'].includes(sort)) {
-        throw badRequest('Invalid sort. Allowed values: slip_date, settled');
+    if (!['slip_date', 'settled', 'published'].includes(sort)) {
+        throw badRequest('Invalid sort. Allowed values: slip_date, settled, published');
     }
 
     // `result=settled` is the published settled-slip shorthand used by the
     // performance screen (recent results need won and lost together).
     const settledOnly = requestedResult === 'settled';
-    const result = settledOnly ? null : requestedResult;
+    const result = settledOnly || requestedResult === 'all' ? null : requestedResult;
     const results = settledOnly ? ['won', 'lost'] : null;
 
     if (publicationStatus && !allowedPublicationStatuses.has(publicationStatus)) {
@@ -233,7 +271,17 @@ function normalizeSlipListFilters(filters = {}) {
         throw badRequest('Invalid offset. Must be zero or greater');
     }
 
-    return { publicationStatus, result, results, creationType, sort, limit, offset };
+    return {
+        publicationStatus,
+        result,
+        results,
+        creationType,
+        sort,
+        limit,
+        offset,
+        publicationDate: filters.publicationDate ?? null,
+        timezone: filters.timezone ?? null
+    };
 }
 
 function normalizeFilterValue(value) {
@@ -368,6 +416,8 @@ function calculateTotalOdds(tips) {
 }
 
 function toSlipListRow(row) {
+    const legCount = Number(row.leg_count);
+
     return {
         id: Number(row.id),
         title: row.title,
@@ -381,9 +431,71 @@ function toSlipListRow(row) {
         publicationStatus: row.publication_status,
         publishedAt: row.published_at,
         settledAt: row.settled_at,
-        legCount: Number(row.leg_count),
+        legCount,
+        slipType: slipTypeForCount(legCount),
         createdAt: row.created_at,
         updatedAt: row.updated_at
+    };
+}
+
+function toPublicSlipListRow(slip) {
+    return {
+        id: slip.id,
+        title: slip.title,
+        publishedAt: slip.publishedAt,
+        result: slip.result,
+        stakeUnits: slip.stakeUnits,
+        totalOdds: slip.totalOdds,
+        returnUnits: slip.returnUnits,
+        profitUnits: slip.profitUnits,
+        settledAt: slip.settledAt,
+        legCount: slip.legCount,
+        slipType: slip.slipType
+    };
+}
+
+function toPublicSlipDetail(slip) {
+    const legCount = slip.tips.length;
+    const selections = slip.tips.map(toPublicSelection);
+
+    return {
+        id: slip.id,
+        title: slip.title,
+        publishedAt: slip.publishedAt,
+        result: slip.result,
+        stakeUnits: slip.stakeUnits,
+        totalOdds: slip.totalOdds,
+        returnUnits: slip.returnUnits,
+        profitUnits: slip.profitUnits,
+        settledAt: slip.settledAt,
+        legCount,
+        slipType: slipTypeForCount(legCount),
+        selections,
+        tips: selections
+    };
+}
+
+function toPublicSelection(tip) {
+    return {
+        legOrder: tip.legOrder,
+        odds: tip.odds,
+        result: tip.result,
+        marketCode: tip.marketCode,
+        marketName: tip.marketName,
+        selectionCode: tip.selectionCode,
+        selectionName: tip.selectionName,
+        line: tip.line,
+        oddsCapturedAt: tip.oddsCapturedAt,
+        settledAt: tip.settledAt,
+        match: {
+            homeTeam: tip.match.homeTeam,
+            awayTeam: tip.match.awayTeam,
+            competition: tip.match.competition,
+            startsAt: tip.match.startsAt,
+            status: tip.match.status,
+            homeScore: tip.match.homeScore,
+            awayScore: tip.match.awayScore
+        }
     };
 }
 
@@ -426,7 +538,10 @@ function shapeSlipWithLegs(rows) {
                     homeTeam: row.home_team,
                     awayTeam: row.away_team,
                     competition: row.competition,
-                    startsAt: row.starts_at
+                    startsAt: row.starts_at,
+                    status: row.match_status,
+                    homeScore: row.home_score === null ? null : Number(row.home_score),
+                    awayScore: row.away_score === null ? null : Number(row.away_score)
                 }
             }))
     };

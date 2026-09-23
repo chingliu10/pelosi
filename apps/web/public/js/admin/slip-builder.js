@@ -1,479 +1,507 @@
 /**
  * Admin Slip Builder.
  *
- * Loads pending tips from GET /api/v1/tips?result=pending (stored Pelosi odds -
- * never fresh TrueOdds odds), keeps the selection in browser state, previews the
- * accumulator and creates the draft through POST /api/v1/slips. The backend
- * remains authoritative for total odds, stake, result and publication status.
+ * Search TrueOdds through Pelosi, add selections to a server-side session
+ * builder, then save the temporary builder as one private draft slip.
  */
 (() => {
     'use strict';
 
     const ui = window.PelosiAdminUI;
+    const {
+        el,
+        clear,
+        formatDateTime,
+        formatOdds,
+        formatTotalOdds,
+        formatLabel,
+        readJson,
+        errorMessage,
+        setFeedback,
+        previewRow,
+        networkFailure
+    } = ui;
 
     const state = {
-        search: '',
-        offset: 0,
-        limit: 20,
-        tips: [],
-        total: 0,
-        loading: false,
-        error: '',
-        sessionExpired: false,
-        selected: [],
-        title: '',
-        creating: false,
-        createError: '',
-        created: null
+        searching: false,
+        searched: false,
+        query: '',
+        searchError: '',
+        matches: [],
+        match: null,
+        marketsLoading: false,
+        marketsError: '',
+        markets: [],
+        builder: null,
+        builderLoading: true,
+        builderError: '',
+        saveError: '',
+        saving: false,
+        saved: null,
+        title: ''
     };
 
     const els = {
         searchForm: document.getElementById('builder-search-form'),
         searchInput: document.getElementById('builder-search-input'),
+        searchButton: document.getElementById('builder-search-button'),
         feedback: document.getElementById('builder-feedback'),
-        empty: document.getElementById('builder-empty'),
-        available: document.getElementById('available-tips'),
-        pager: document.getElementById('builder-pager'),
-        prev: document.getElementById('builder-prev'),
-        next: document.getElementById('builder-next'),
-        range: document.getElementById('builder-range'),
+        resultsCard: document.getElementById('builder-results-card'),
+        resultsCount: document.getElementById('builder-results-count'),
+        resultsList: document.getElementById('builder-results-list'),
+        resultsEmpty: document.getElementById('builder-results-empty'),
+        marketsCard: document.getElementById('builder-markets-card'),
+        matchSummary: document.getElementById('builder-match-summary'),
+        marketsFeedback: document.getElementById('builder-markets-feedback'),
+        marketGroups: document.getElementById('builder-market-groups'),
+        marketsEmpty: document.getElementById('builder-markets-empty'),
         preview: document.getElementById('slip-preview')
     };
 
-    /* ---------------- data ---------------- */
-
-    async function loadTips() {
-        state.loading = true;
-        state.error = '';
-        state.sessionExpired = false;
-        render();
-
-        const params = new URLSearchParams({ result: 'pending' });
-
-        if (state.search) params.set('search', state.search);
-
-        params.set('limit', String(state.limit));
-        params.set('offset', String(state.offset));
-
-        let response = null;
-
-        try {
-            response = await fetch(`/api/v1/tips?${params.toString()}`, { credentials: 'same-origin' });
-            const payload = await ui.readJson(response);
-
-            if (response.status === 401) {
-                state.sessionExpired = true;
-                throw new Error('Your admin session expired.');
-            }
-
-            if (!response.ok) {
-                throw new Error(ui.friendlyFailure(response, payload, 'load pending tips'));
-            }
-
-            state.tips = payload.tips ?? [];
-            state.total = Number(payload.total ?? state.tips.length);
-
-            // A tip may have settled since it was added to the selection.
-            const stale = state.selected.filter((selected) => {
-                const fresh = state.tips.find((tip) => tip.id === selected.id);
-
-                return fresh && fresh.result !== 'pending';
-            });
-
-            if (stale.length > 0) {
-                state.selected = state.selected.filter((selected) => !stale.some((tip) => tip.id === selected.id));
-                state.createError = `Removed ${stale.map((tip) => `tip ${tip.id}`).join(', ')}: no longer pending.`;
-            }
-        } catch (error) {
-            state.error = state.sessionExpired
-                ? error.message
-                : (response ? error.message : ui.networkFailure);
-        } finally {
-            state.loading = false;
-            render();
+    function friendlyFailure(response, payload, action) {
+        if (response.status >= 500) {
+            return `TrueOdds is unavailable right now, so Pelosi could not ${action}. Please try again.`;
         }
+
+        return errorMessage(payload, `Could not ${action} (HTTP ${response.status}).`);
     }
 
-    /* ---------------- selection ---------------- */
+    function normalizeMatch(raw) {
+        const source = raw || {};
 
-    function isSelected(tip) {
-        return state.selected.some((selected) => selected.id === tip.id);
+        return {
+            trueOddsId: String(source.trueOddsId ?? source.trueodds_id ?? source.id ?? ''),
+            home: source.homeTeam?.name ?? source.home_team_name ?? 'Home team',
+            away: source.awayTeam?.name ?? source.away_team_name ?? 'Away team',
+            competition: source.competition?.name ?? source.league ?? null,
+            startsAt: source.startsAt ?? source.start_time ?? null,
+            status: source.status ?? source.match_status ?? null
+        };
     }
 
-    function conflictsWithSelection(tip) {
-        return state.selected.some((selected) => selected.match.id === tip.match.id);
+    function normalizeMarkets(payload) {
+        const rawMarkets = Array.isArray(payload?.markets) ? payload.markets : [];
+
+        return rawMarkets
+            .map((market, index) => {
+                const rawSelections = market.selections ?? market.outcomes ?? [];
+
+                return {
+                    id: String(market.id ?? market.sourceMarketId ?? market.name ?? index),
+                    code: market.code ?? 'UNKNOWN',
+                    name: market.name ?? market.market_title ?? market.market_name ?? market.code ?? 'Market',
+                    selections: rawSelections
+                        .map((selection) => ({
+                            sourceOddsId: String(selection.sourceOddsId ?? selection.event_odds_id ?? selection.id ?? ''),
+                            name: selection.name ?? selection.outcomeName ?? selection.outcome_desc ?? selection.pick_team ?? 'Selection',
+                            odds: Number(selection.odds)
+                        }))
+                        .filter((selection) => selection.sourceOddsId && Number.isFinite(selection.odds))
+                };
+            })
+            .filter((market) => market.selections.length > 0);
     }
 
-    function addTip(tip) {
-        if (isSelected(tip) || conflictsWithSelection(tip)) return;
-
-        state.selected = [...state.selected, tip];
-        state.createError = '';
-        render();
+    function predictionLabel(selection) {
+        return selection?.selection?.name || formatLabel(selection?.selection?.code);
     }
 
-    function removeTip(tipId) {
-        state.selected = state.selected.filter((tip) => tip.id !== tipId);
-        render();
-    }
-
-    function previewTotalOdds() {
-        const total = state.selected.reduce((product, tip) => product * Number(tip.odds), 1);
-
-        return state.selected.length === 0 ? 1 : total;
-    }
-
-    /* ---------------- creation ---------------- */
-
-    async function createSlip() {
-        if (state.selected.length === 0 || state.creating) return;
-
-        state.creating = true;
-        state.createError = '';
+    async function loadBuilder() {
+        state.builderLoading = true;
+        state.builderError = '';
         renderPreview();
 
-        const body = {
-            tipIds: state.selected.map((tip) => tip.id),
-            creationType: 'manual'
-        };
+        let response = null;
 
-        if (state.title.trim()) {
-            body.title = state.title.trim();
+        try {
+            response = await fetch('/api/v1/admin/slip-builder', { credentials: 'same-origin' });
+            const payload = await readJson(response);
+
+            if (response.status === 401) throw new Error('Your admin session expired.');
+            if (!response.ok) throw new Error(friendlyFailure(response, payload, 'load your slip'));
+
+            state.builder = payload;
+        } catch (error) {
+            state.builderError = response ? error.message : networkFailure;
+        } finally {
+            state.builderLoading = false;
+            renderPreview();
         }
+    }
+
+    async function searchMatches(query) {
+        state.searching = true;
+        state.searched = false;
+        state.query = query;
+        state.searchError = '';
+        state.matches = [];
+        renderSearch();
+        renderResults();
 
         let response = null;
 
         try {
-            response = await fetch('/api/v1/slips', {
+            response = await fetch(`/api/trueodds/matches/search?q=${encodeURIComponent(query)}&limit=50`, {
+                credentials: 'same-origin'
+            });
+            const payload = await readJson(response);
+
+            if (!response.ok) throw new Error(friendlyFailure(response, payload, 'search matches'));
+
+            state.matches = (payload?.matches ?? []).map(normalizeMatch).filter((match) => match.trueOddsId);
+            state.searched = true;
+        } catch (error) {
+            state.searchError = response ? error.message : networkFailure;
+        } finally {
+            state.searching = false;
+            renderSearch();
+            renderResults();
+        }
+    }
+
+    async function loadMarkets(match) {
+        state.match = match;
+        state.markets = [];
+        state.marketsError = '';
+        state.marketsLoading = true;
+        renderResults();
+        renderMarkets();
+
+        let response = null;
+
+        try {
+            response = await fetch(`/api/trueodds/matches/${encodeURIComponent(match.trueOddsId)}/markets`, {
+                credentials: 'same-origin'
+            });
+            const payload = await readJson(response);
+
+            if (!response.ok) throw new Error(friendlyFailure(response, payload, 'load markets'));
+
+            state.markets = normalizeMarkets(payload);
+        } catch (error) {
+            state.marketsError = response ? error.message : networkFailure;
+        } finally {
+            state.marketsLoading = false;
+            renderMarkets();
+        }
+    }
+
+    async function addSelection(selection) {
+        state.saveError = '';
+
+        let response = null;
+
+        try {
+            response = await fetch('/api/v1/admin/slip-builder/selections', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                    matchId: state.match.trueOddsId,
+                    sourceOddsId: selection.sourceOddsId
+                })
             });
-            const payload = await ui.readJson(response);
+            const payload = await readJson(response);
 
-            if (response.status === 401) {
-                state.sessionExpired = true;
-                throw new Error('Your admin session expired.');
-            }
+            if (response.status === 401) throw new Error('Your admin session expired.');
+            if (!response.ok) throw new Error(errorMessage(payload, `Could not add selection (HTTP ${response.status}).`));
 
-            if (!response.ok) {
-                throw new Error(ui.errorMessage(payload, `Could not create the slip (HTTP ${response.status}).`));
-            }
-
-            state.created = payload;
+            state.builder = payload;
         } catch (error) {
-            state.createError = error.message || 'Could not create the slip.';
+            state.saveError = response ? error.message : networkFailure;
         } finally {
-            state.creating = false;
-            render();
+            renderMarkets();
+            renderPreview();
         }
     }
 
-    /* ---------------- rendering ---------------- */
+    async function removeSelection(sourceOddsId) {
+        const response = await fetch(`/api/v1/admin/slip-builder/selections/${encodeURIComponent(sourceOddsId)}`, {
+            method: 'DELETE',
+            credentials: 'same-origin'
+        });
+        const payload = await readJson(response);
 
-    function render() {
-        renderFeedback();
-        renderAvailableTips();
-        renderPager();
+        if (response.ok) {
+            state.builder = payload;
+            state.saved = null;
+            renderMarkets();
+            renderPreview();
+        }
+    }
+
+    async function clearBuilder() {
+        const response = await fetch('/api/v1/admin/slip-builder', {
+            method: 'DELETE',
+            credentials: 'same-origin'
+        });
+        const payload = await readJson(response);
+
+        if (response.ok) {
+            state.builder = payload;
+            state.saved = null;
+            state.title = '';
+            renderPreview();
+            renderMarkets();
+        }
+    }
+
+    async function saveSlip() {
+        if (state.saving || !state.builder?.selectionCount) return;
+
+        state.saving = true;
+        state.saveError = '';
         renderPreview();
-    }
 
-    function renderFeedback() {
-        clear(els.feedback);
+        let response = null;
 
-        if (state.sessionExpired) {
-            els.feedback.className = 'feedback';
-            els.feedback.appendChild(ui.sessionExpiredAlert('/admin/slips/new'));
-            return;
-        }
+        try {
+            response = await fetch('/api/v1/admin/slip-builder/save', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: state.title })
+            });
+            const payload = await readJson(response);
 
-        if (state.loading) {
-            ui.setFeedback(els.feedback, 'Loading tips…', '');
-            return;
-        }
+            if (response.status === 401) throw new Error('Your admin session expired.');
+            if (!response.ok) throw new Error(errorMessage(payload, `Could not save the slip (HTTP ${response.status}).`));
 
-        if (state.error) {
-            ui.setFeedback(els.feedback, state.error, 'error');
-            return;
-        }
-
-        if (state.createError) {
-            ui.setFeedback(els.feedback, state.createError, 'error');
-            return;
-        }
-
-        ui.setFeedback(els.feedback, state.tips.length > 0
-            ? `${state.total} pending tip${state.total === 1 ? '' : 's'} available.`
-            : '', '');
-    }
-
-    function renderAvailableTips() {
-        clear(els.available);
-        clear(els.empty);
-        els.empty.hidden = true;
-
-        if (state.loading || state.error || state.sessionExpired) return;
-
-        if (state.tips.length === 0) {
-            els.empty.hidden = false;
-
-            if (state.search) {
-                els.empty.append(ui.el('p', null, 'No pending tips match this search.'));
-
-                const clearButton = ui.el('button', 'btn btn--ghost btn--sm', 'Clear search');
-
-                clearButton.type = 'button';
-                clearButton.addEventListener('click', () => {
-                    state.search = '';
-                    state.offset = 0;
-                    els.searchInput.value = '';
-                    loadTips();
-                });
-                els.empty.appendChild(clearButton);
-                return;
-            }
-
-            els.empty.append(ui.el('p', null, 'No pending tips available.'));
-
-            const link = ui.el('a', 'btn btn--primary btn--sm', 'Create a tip');
-
-            link.href = '/admin/tips/new';
-            els.empty.appendChild(link);
-            return;
-        }
-
-        for (const tip of state.tips) {
-            els.available.appendChild(tipRow(tip));
+            state.saved = payload;
+            state.builder = { selections: [], selectionCount: 0, previewTotalOdds: 1, slipType: null };
+            state.title = '';
+        } catch (error) {
+            state.saveError = response ? error.message : networkFailure;
+        } finally {
+            state.saving = false;
+            renderPreview();
         }
     }
 
-    function tipRow(tip) {
-        const selected = isSelected(tip);
-        const conflict = !selected && conflictsWithSelection(tip);
-        const row = ui.el('li', `tip-card${selected ? ' is-active' : ''}`);
-        const body = ui.el('div', 'tip-card__button tip-card__button--static');
-        const main = ui.el('div', 'tip-card__main');
+    function renderSearch() {
+        els.searchButton.disabled = state.searching;
+        els.searchButton.textContent = state.searching ? 'Searching...' : 'Search';
 
-        main.append(
-            ui.el('p', 'tip-card__title', `${tip.match.homeTeam} vs ${tip.match.awayTeam}`),
-            ui.el('p', 'tip-card__meta', tip.match.competition || 'Competition unknown')
+        if (state.searching) return setFeedback(els.feedback, 'Searching matches...', '');
+        if (state.searchError) return setFeedback(els.feedback, state.searchError, 'error');
+
+        setFeedback(
+            els.feedback,
+            state.searched ? `Showing ${state.matches.length} match${state.matches.length === 1 ? '' : 'es'} for "${state.query}".` : '',
+            ''
+        );
+    }
+
+    function renderResults() {
+        clear(els.resultsList);
+        els.resultsCard.hidden = !state.searched;
+
+        if (!state.searched) return;
+
+        els.resultsCount.textContent = `${state.matches.length} result${state.matches.length === 1 ? '' : 's'}`;
+        els.resultsEmpty.hidden = state.matches.length > 0;
+
+        for (const match of state.matches) {
+            const item = el('li', 'match-item');
+            const body = el('div', 'match-item__body');
+            const action = el('button', 'btn btn--ghost btn--sm', 'View markets');
+
+            body.append(
+                el('p', 'match-item__title', `${match.home} vs ${match.away}`),
+                el('p', 'match-item__meta', [match.competition, formatDateTime(match.startsAt)].filter(Boolean).join(' - ')),
+                el('p', 'match-item__meta', formatLabel(match.status || 'scheduled'))
+            );
+            action.type = 'button';
+            action.addEventListener('click', () => loadMarkets(match));
+            item.append(body, action);
+            els.resultsList.appendChild(item);
+        }
+    }
+
+    function renderMarkets() {
+        if (!state.match) {
+            els.marketsCard.hidden = true;
+            return;
+        }
+
+        els.marketsCard.hidden = false;
+        clear(els.matchSummary);
+        clear(els.marketGroups);
+
+        els.matchSummary.append(
+            el('p', 'match-summary__teams', `${state.match.home} vs ${state.match.away}`),
+            el('p', 'match-summary__meta', `${state.match.competition || 'Competition unknown'} - ${formatDateTime(state.match.startsAt)}`)
         );
 
-        const details = ui.el('div', 'tip-card__details');
-
-        details.append(
-            ui.field('Prediction', ui.predictionLabel(tip)),
-            ui.field('Market', tip.marketName || ui.formatLabel(tip.marketCode)),
-            ui.field('Odds', ui.formatOdds(tip.odds), 'tabular'),
-            ui.field('Kickoff', ui.formatDateTime(tip.match.startsAt))
-        );
-
-        const side = ui.el('div', 'tip-card__side');
-
-        side.appendChild(ui.el('span', `status-pill status-pill--${ui.statusTone(tip.result)}`, ui.formatLabel(tip.result)));
-
-        if (selected || conflict) {
-            const label = selected ? 'Added' : 'Same match';
-            const button = ui.el('button', 'btn btn--ghost btn--sm', label);
-
-            button.type = 'button';
-            button.disabled = true;
-            side.appendChild(button);
-
-            if (conflict) {
-                side.appendChild(ui.el('span', 'tip-card__id', 'Already one tip from this match'));
-            }
-        } else {
-            const add = ui.el('button', 'btn btn--primary btn--sm', 'Add to slip');
-
-            add.type = 'button';
-            add.setAttribute('aria-label', `Add ${ui.predictionLabel(tip)} to the slip`);
-            add.addEventListener('click', () => addTip(tip));
-            side.appendChild(add);
+        if (state.marketsLoading) {
+            els.marketsEmpty.hidden = true;
+            return setFeedback(els.marketsFeedback, 'Loading markets...', '');
         }
 
-        body.append(main, details, side);
-        row.appendChild(body);
+        if (state.marketsError) {
+            els.marketsEmpty.hidden = true;
+            return setFeedback(els.marketsFeedback, state.marketsError, 'error');
+        }
 
-        return row;
-    }
+        els.marketsEmpty.hidden = state.markets.length > 0;
+        setFeedback(els.marketsFeedback, state.markets.length > 0 ? `${state.markets.length} market${state.markets.length === 1 ? '' : 's'} shown.` : '', '');
 
-    function renderPager() {
-        const show = !state.loading && !state.error && !state.sessionExpired && state.total > state.limit;
+        for (const market of state.markets) {
+            const group = el('section', 'market-group');
+            const header = el('div', 'market-group__header');
+            const selections = el('div', 'selections');
 
-        els.pager.hidden = !show;
+            header.append(el('h3', 'market-group__title', market.name), el('span', 'market-group__code', market.code));
 
-        if (!show) return;
+            for (const selection of market.selections) {
+                const added = state.builder?.selections?.some((item) => item.sourceOddsId === selection.sourceOddsId);
+                const button = el('button', 'selection');
 
-        const from = state.total === 0 ? 0 : state.offset + 1;
-        const to = Math.min(state.offset + state.tips.length, state.total);
+                button.type = 'button';
+                button.disabled = added;
+                button.append(
+                    el('span', 'selection__name', selection.name),
+                    el('span', 'selection__odds', added ? 'Added' : formatOdds(selection.odds))
+                );
+                button.addEventListener('click', () => addSelection(selection));
+                selections.appendChild(button);
+            }
 
-        els.range.textContent = `Showing ${from}–${to} of ${state.total}`;
-        els.prev.disabled = state.offset <= 0;
-        els.next.disabled = state.offset + state.limit >= state.total;
+            group.append(header, selections);
+            els.marketGroups.appendChild(group);
+        }
     }
 
     function renderPreview() {
         clear(els.preview);
 
-        if (state.created) {
-            renderCreated();
+        if (state.builderLoading) {
+            els.preview.appendChild(el('p', 'empty', 'Loading your slip...'));
             return;
         }
 
-        if (state.sessionExpired) {
-            els.preview.appendChild(ui.el('p', 'empty', 'Session expired.'));
-            return;
-        }
+        if (state.saved) return renderSaved();
 
-        const titleField = ui.el('div', 'field');
-        const titleLabel = ui.el('label', 'field__label', 'Slip title (optional)');
+        const titleField = el('div', 'field');
+        const titleLabel = el('label', 'field__label', 'Slip title (optional)');
+        const titleInput = el('input', 'input');
 
         titleLabel.setAttribute('for', 'slip-title');
-        titleField.appendChild(titleLabel);
-
-        const titleInput = ui.el('input', 'input');
-
         titleInput.id = 'slip-title';
         titleInput.type = 'text';
-        titleInput.placeholder = "Today's Double";
-        titleInput.value = state.title;
+        titleInput.placeholder = 'Single Pick';
         titleInput.maxLength = 150;
+        titleInput.value = state.title;
         titleInput.addEventListener('input', () => {
             state.title = titleInput.value;
         });
-        titleField.appendChild(titleInput);
+        titleField.append(titleLabel, titleInput);
         els.preview.appendChild(titleField);
 
-        if (state.selected.length === 0) {
-            els.preview.appendChild(ui.el(
-                'p',
-                'empty',
-                'No tips selected yet. Add pending tips from the list on the left.'
-            ));
+        if (state.builderError) {
+            els.preview.appendChild(el('p', 'empty', state.builderError));
+            return;
+        }
+
+        const selections = state.builder?.selections ?? [];
+
+        if (selections.length === 0) {
+            els.preview.appendChild(el('p', 'empty', 'No selections yet. Search TrueOdds and add an outcome.'));
         } else {
-            const list = ui.el('ul', 'selection-list');
+            const list = el('ul', 'selection-list');
 
-            state.selected.forEach((tip, index) => {
-                const item = ui.el('li', 'selection-item');
-                const text = ui.el('div', 'selection-item__body');
+            selections.forEach((selection, index) => {
+                const item = el('li', 'selection-item');
+                const body = el('div', 'selection-item__body');
+                const remove = el('button', 'btn btn--ghost btn--sm', 'Remove');
 
-                text.append(
-                    ui.el('p', 'selection-item__title', `${index + 1}. ${tip.match.homeTeam} vs ${tip.match.awayTeam}`),
-                    ui.el('p', 'selection-item__meta', `${ui.predictionLabel(tip)} • ${tip.marketName || ui.formatLabel(tip.marketCode)}`),
-                    ui.el('p', 'selection-item__meta', `@ ${ui.formatOdds(tip.odds)}`)
+                body.append(
+                    el('p', 'selection-item__title', `${index + 1}. ${selection.match.homeTeam} vs ${selection.match.awayTeam}`),
+                    el('p', 'selection-item__meta', `${predictionLabel(selection)} - ${selection.market.name || formatLabel(selection.market.code)}`),
+                    el('p', 'selection-item__meta', `@ ${formatOdds(selection.displayedOdds)}`)
                 );
-
-                const remove = ui.el('button', 'btn btn--ghost btn--sm', 'Remove');
-
                 remove.type = 'button';
-                remove.setAttribute('aria-label', `Remove ${ui.predictionLabel(tip)} from the slip`);
-                remove.addEventListener('click', () => removeTip(tip.id));
-
-                item.append(text, remove);
+                remove.addEventListener('click', () => removeSelection(selection.sourceOddsId));
+                item.append(body, remove);
                 list.appendChild(item);
             });
 
-            els.preview.appendChild(list);
-
-            const rows = ui.el('dl', 'preview__rows');
+            const rows = el('dl', 'preview__rows');
 
             rows.append(
-                ui.previewRow('Selections', String(state.selected.length)),
-                ui.previewRow('Total odds (preview)', ui.formatTotalOdds(previewTotalOdds()), 'preview__value--odds'),
-                ui.previewRow('Stake', '1u')
+                previewRow('Type', state.builder.slipType),
+                previewRow('Selections', String(state.builder.selectionCount)),
+                previewRow('Total odds', formatTotalOdds(state.builder.previewTotalOdds), 'preview__value--odds'),
+                previewRow('Expires', formatDateTime(state.builder.expiresAt))
             );
-
-            els.preview.appendChild(rows);
+            els.preview.append(list, rows);
         }
 
-        if (state.createError) {
-            const alert = ui.el('div', 'alert alert--error');
+        if (state.saveError) {
+            const alert = el('div', 'alert alert--error');
 
-            alert.append(
-                ui.el('p', 'alert__title', 'Slip not created'),
-                ui.el('p', null, state.createError)
-            );
+            alert.append(el('p', 'alert__title', 'Slip not saved'), el('p', null, state.saveError));
             els.preview.appendChild(alert);
         }
 
-        const actions = ui.el('div', 'preview__actions');
-        const create = ui.el('button', 'btn btn--primary btn--block', state.creating ? 'Creating slip…' : 'Create draft');
+        const actions = el('div', 'preview__actions');
+        const save = el('button', 'btn btn--primary btn--block', state.saving ? 'Saving slip...' : 'Save slip');
+        const clearButton = el('button', 'btn btn--ghost btn--block', 'Clear slip');
 
-        create.type = 'button';
-        create.disabled = state.creating || state.selected.length === 0;
-        create.addEventListener('click', createSlip);
-        actions.appendChild(create);
-        els.preview.append(actions, ui.el('p', 'muted-note', 'Pelosi calculates the stored total odds from the tip odds snapshots.'));
+        save.type = 'button';
+        save.disabled = state.saving || selections.length === 0;
+        save.addEventListener('click', saveSlip);
+        clearButton.type = 'button';
+        clearButton.disabled = selections.length === 0;
+        clearButton.addEventListener('click', clearBuilder);
+        actions.append(save, clearButton);
+        els.preview.append(actions, el('p', 'muted-note', 'Odds are re-checked with TrueOdds at save time. The draft stays private until published.'));
     }
 
-    function renderCreated() {
-        const slip = state.created;
+    function renderSaved() {
+        const slip = state.saved.slip;
+        const alert = el('div', 'alert alert--success');
+        const rows = el('dl', 'preview__rows');
+        const actions = el('div', 'preview__actions');
+        const view = el('a', 'btn btn--primary btn--block', 'View slip');
+        const another = el('button', 'btn btn--ghost btn--block', 'Build another slip');
+        const goToSlips = el('a', 'btn btn--ghost btn--block', 'Go to slips');
 
-        const alert = ui.el('div', 'alert alert--success');
-
-        alert.append(
-            ui.el('p', 'alert__title', 'Draft slip created'),
-            ui.el('p', null, ui.slipLabel(slip))
-        );
-
-        const rows = ui.el('dl', 'preview__rows');
-
+        alert.append(el('p', 'alert__title', 'Slip created'), el('p', null, `${slip.slipType} - ${slip.legCount} selection${slip.legCount === 1 ? '' : 's'}`));
         rows.append(
-            ui.previewRow('Slip', `#${slip.id}`),
-            ui.previewRow('Selections', String(slip.tips?.length ?? state.selected.length)),
-            ui.previewRow('Total odds', ui.formatTotalOdds(slip.totalOdds), 'preview__value--odds'),
-            ui.previewRow('Stake', `${Number(slip.stakeUnits)}u`),
-            ui.previewRow('Status', ui.formatLabel(slip.result)),
-            ui.previewRow('Publication', ui.formatLabel(slip.publicationStatus))
+            previewRow('Slip', `#${slip.id}`),
+            previewRow('Total odds', formatTotalOdds(slip.totalOdds), 'preview__value--odds'),
+            previewRow('Stake', `${Number(slip.stakeUnits)}u`),
+            previewRow('Publication', formatLabel(slip.publicationStatus))
         );
-
-        const actions = ui.el('div', 'preview__actions');
-        const view = ui.el('a', 'btn btn--primary btn--block', 'View slip');
-        const another = ui.el('button', 'btn btn--ghost btn--block', 'Create another slip');
-        const goToSlips = ui.el('a', 'btn btn--ghost btn--block', 'Go to slips');
-
         view.href = `/admin/slips?slip=${slip.id}`;
-        goToSlips.href = '/admin/slips';
         another.type = 'button';
         another.addEventListener('click', () => {
-            state.created = null;
-            state.selected = [];
-            state.title = '';
-            state.createError = '';
-            loadTips();
+            state.saved = null;
+            loadBuilder();
         });
-
+        goToSlips.href = '/admin/slips';
         actions.append(view, another, goToSlips);
-        els.preview.append(
-            alert,
-            rows,
-            actions,
-            ui.el('p', 'muted-note', 'The draft stays private until it is published from the Slips screen.')
-        );
+        els.preview.append(alert, rows, actions);
     }
-
-    /* ---------------- interactions ---------------- */
 
     els.searchForm.addEventListener('submit', (event) => {
         event.preventDefault();
-        state.search = els.searchInput.value.trim();
-        state.offset = 0;
-        loadTips();
+
+        const query = els.searchInput.value.trim();
+
+        if (!query) {
+            setFeedback(els.feedback, 'Enter a team or match name to search.', 'error');
+            els.searchInput.focus();
+            return;
+        }
+
+        searchMatches(query);
     });
 
-    els.prev.addEventListener('click', () => {
-        state.offset = Math.max(0, state.offset - state.limit);
-        loadTips();
-    });
-
-    els.next.addEventListener('click', () => {
-        if (state.offset + state.limit >= state.total) return;
-
-        state.offset += state.limit;
-        loadTips();
-    });
-
-    loadTips();
+    loadBuilder();
+    renderSearch();
+    renderResults();
+    renderMarkets();
+    els.searchInput.focus();
 })();

@@ -1,0 +1,43 @@
+<section class="page-hero" data-page="public-history">
+    <div>
+        <p class="eyebrow">Published archive</p>
+        <h1>History</h1>
+        <p class="page-hero__subtitle">Published slip results and previous selections.</p>
+        <p class="page-hero__timezone" id="history-timezone"></p>
+    </div>
+</section>
+
+<section class="tips-panel" aria-labelledby="history-heading">
+    <div class="tips-toolbar">
+        <div>
+            <h2 id="history-heading">Published Slips</h2>
+            <p class="muted">Newest publication first. Draft and hidden slips stay private.</p>
+        </div>
+        <div class="result-tabs" aria-label="Filter history by result">
+            <a class="result-tab" href="/history" data-result-filter="all">All</a>
+            <a class="result-tab" href="/history?result=won" data-result-filter="won">Won</a>
+            <a class="result-tab" href="/history?result=lost" data-result-filter="lost">Lost</a>
+            <a class="result-tab" href="/history?result=void" data-result-filter="void">Void</a>
+            <a class="result-tab" href="/history?result=pending" data-result-filter="pending">Pending</a>
+        </div>
+    </div>
+
+    <div class="summary-bar" id="history-summary" aria-live="polite">
+        <span>Loading history...</span>
+    </div>
+
+    <div class="state-message" id="history-loading" aria-busy="true">Loading history...</div>
+    <div class="state-message is-hidden" id="history-empty">No published slips yet.</div>
+    <div class="state-message state-message--error is-hidden" id="history-error">
+        <span>History could not be loaded right now.</span>
+        <button class="btn-link" type="button" id="history-retry">Try again</button>
+    </div>
+
+    <div class="history-list" id="history-list" aria-live="polite"></div>
+
+    <div class="pager is-hidden" id="history-pager">
+        <button class="btn-link" id="history-prev" type="button">Previous</button>
+        <span class="pager__status" id="history-range"></span>
+        <button class="btn-link" id="history-next" type="button">Next</button>
+    </div>
+</section>

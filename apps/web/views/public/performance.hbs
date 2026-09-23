@@ -1,0 +1,62 @@
+<section class="page-hero" data-page="public-performance">
+    <div>
+        <p class="eyebrow">Published results</p>
+        <h1>Performance</h1>
+        <p class="page-hero__subtitle">Transparent results from published settled slips.</p>
+    </div>
+    <nav class="result-tabs" id="performance-range" aria-label="Performance time range">
+        <a class="result-tab" href="/performance" data-range="all">All time</a>
+        <a class="result-tab" href="/performance?range=7d" data-range="7d">7 days</a>
+        <a class="result-tab" href="/performance?range=30d" data-range="30d">30 days</a>
+        <a class="result-tab" href="/performance?range=90d" data-range="90d">90 days</a>
+    </nav>
+</section>
+
+<section class="tips-panel" aria-labelledby="performance-heading">
+    <div class="tips-toolbar">
+        <div>
+            <h2 id="performance-heading">Headline Metrics</h2>
+            <p class="muted">Slip-level performance from published won/lost slips.</p>
+        </div>
+    </div>
+
+    <div class="state-message" id="performance-loading" aria-busy="true">Loading performance...</div>
+    <div class="state-message is-hidden" id="performance-empty">No published settled slips yet.</div>
+    <div class="state-message state-message--error is-hidden" id="performance-error">
+        <span>Performance could not be loaded right now.</span>
+        <button class="btn-link" type="button" id="performance-retry">Try again</button>
+    </div>
+
+    <div class="metric-grid" id="performance-metrics" aria-live="polite"></div>
+
+    <div class="public-analytics">
+        <section class="analytics-card analytics-card--wide" aria-labelledby="trend-heading">
+            <div class="analytics-card__header">
+                <div>
+                    <h2 id="trend-heading">Cumulative Profit</h2>
+                    <p class="muted">Daily cumulative profit from published settled slips.</p>
+                </div>
+            </div>
+            <div class="state-message" id="trend-loading" aria-busy="true">Loading trend...</div>
+            <div class="state-message is-hidden" id="trend-empty">Not enough settled slips for a trend yet.</div>
+            <div class="chart" id="trend-chart"></div>
+        </section>
+
+        <section class="analytics-card" aria-labelledby="breakdown-heading">
+            <h2 id="breakdown-heading">Wins vs Losses</h2>
+            <div id="breakdown-panel"></div>
+        </section>
+
+        <section class="analytics-card" aria-labelledby="recent-heading">
+            <div class="analytics-card__header">
+                <div>
+                    <h2 id="recent-heading">Recent Results</h2>
+                    <p class="muted">Newest published slips with won or lost results.</p>
+                </div>
+            </div>
+            <div class="state-message" id="recent-loading" aria-busy="true">Loading results...</div>
+            <div class="state-message is-hidden" id="recent-empty">No published settled slips yet.</div>
+            <div class="history-list" id="recent-results"></div>
+        </section>
+    </div>
+</section>

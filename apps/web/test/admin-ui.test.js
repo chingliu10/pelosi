@@ -423,18 +423,19 @@ test('the slip manager renders with its header, filters and detail panel', async
     assert.ok(response.text.includes('/js/admin/ui-shared.js'));
 });
 
-test('the slip builder renders the available tips and preview panels', async () => {
+test('the slip builder renders the TrueOdds search and temporary slip panels', async () => {
     const jar = await signedInJar();
     const response = await request('/admin/slips/new', { jar });
 
     assert.equal(response.status, 200);
     assert.ok(response.text.includes('<title>Build slip · Wachimba Odds Admin</title>'));
-    assert.ok(response.text.includes('Select imported tips and create a draft slip.'));
-    assert.ok(response.text.includes('id="available-tips"'));
+    assert.ok(response.text.includes('Search TrueOdds, add selections to your slip, then save a draft.'));
     assert.ok(response.text.includes('id="builder-search-input"'));
+    assert.ok(response.text.includes('id="builder-results-card"'));
+    assert.ok(response.text.includes('id="builder-markets-card"'));
     assert.ok(response.text.includes('id="slip-preview"'));
-    assert.ok(response.text.includes('Slip preview'));
-    assert.ok(response.text.includes('Only pending tips are listed.'));
+    assert.ok(response.text.includes('Your slip'));
+    assert.ok(response.text.includes('Add one selection for a Single'));
     assert.ok(response.text.includes('/js/admin/slip-builder.js'));
     assert.ok(response.text.includes('/js/admin/ui-shared.js'));
 });
@@ -471,35 +472,35 @@ test('the Slips nav item is functional and active on every slip screen', async (
     assert.ok(tipsPage.includes('href="/admin/slips/new"'), 'the Tips screen links to the builder');
 });
 
-test('the slip builder consumes the tips API and posts only the allowed fields', async () => {
+test('the slip builder uses TrueOdds proxy and the temporary builder API', async () => {
     const script = await readAsset('../public/js/admin/slip-builder.js');
 
-    assert.ok(script.includes('"/api/v1/tips?"') || script.includes('`/api/v1/tips?'));
-    assert.ok(script.includes("new URLSearchParams({ result: 'pending' })"));
+    assert.ok(script.includes('/api/trueodds/matches/search'));
+    assert.ok(script.includes('/api/trueodds/matches/${encodeURIComponent(match.trueOddsId)}/markets'));
+    assert.ok(script.includes("fetch('/api/v1/admin/slip-builder'"));
+    assert.ok(script.includes("fetch('/api/v1/admin/slip-builder/selections'"));
+    assert.ok(script.includes("fetch('/api/v1/admin/slip-builder/save'"));
     assert.ok(script.includes('credentials: \'same-origin\''));
-    assert.ok(script.includes("fetch('/api/v1/slips'"));
-    assert.ok(script.includes('JSON.stringify(body)'));
-    assert.ok(script.includes('tipIds: state.selected.map((tip) => tip.id)'));
-    assert.ok(script.includes("creationType: 'manual'"));
+    assert.ok(script.includes('matchId: state.match.trueOddsId'));
+    assert.ok(script.includes('sourceOddsId: selection.sourceOddsId'));
+    assert.ok(!script.includes('/api/v1/tips?'));
+    assert.ok(!script.includes("fetch('/api/v1/slips'"));
 
     // The browser must never send backend-owned financial values.
-    for (const forbidden of ['totalOdds:', 'stakeUnits:', 'profitUnits:', 'returnUnits:', 'publicationStatus:']) {
+    for (const forbidden of ['totalOdds:', 'stakeUnits:', 'profitUnits:', 'returnUnits:', 'publicationStatus:', 'tipIds:']) {
         assert.ok(!script.includes(forbidden), `the builder must not send ${forbidden}`);
     }
 
     assert.ok(!/https?:\/\//.test(script));
 });
 
-test('the slip builder previews total odds from stored tip odds', async () => {
+test('the slip builder previews session odds and displays saved backend totals', async () => {
     const script = await readAsset('../public/js/admin/slip-builder.js');
 
-    assert.ok(script.includes('function previewTotalOdds()'));
-    assert.ok(script.includes('product * Number(tip.odds)'));
-    assert.ok(script.includes('ui.formatTotalOdds(previewTotalOdds())'));
-    assert.ok(script.includes("'Total odds (preview)'"));
-    assert.ok(script.includes('ui.formatTotalOdds(slip.totalOdds)'), 'the created slip shows the backend total');
-    assert.ok(script.includes('Same match'), 'same-match tips are blocked in the UI');
-    assert.ok(script.includes('conflictsWithSelection'));
+    assert.ok(script.includes('formatTotalOdds(state.builder.previewTotalOdds)'));
+    assert.ok(script.includes('formatTotalOdds(slip.totalOdds)'), 'the created slip shows the backend total');
+    assert.ok(script.includes('Odds are re-checked with TrueOdds at save time.'));
+    assert.ok(script.includes('Single Pick'));
 });
 
 test('the slip manager consumes the slips API and calls publish/hide', async () => {
@@ -521,11 +522,11 @@ test('the slip screens ship loading, empty, error and mobile states', async () =
     const manager = await readAsset('../public/js/admin/slips.js');
     const css = await readAsset('../public/css/admin.css');
 
-    assert.ok(builder.includes('Loading tips…'));
-    assert.ok(builder.includes('Creating slip…'));
-    assert.ok(builder.includes('No pending tips available.'));
-    assert.ok(builder.includes('No pending tips match this search.'));
-    assert.ok(builder.includes('Slip not created'));
+    assert.ok(builder.includes('Loading your slip...'));
+    assert.ok(builder.includes('Saving slip...'));
+    assert.ok(builder.includes('No selections yet.'));
+    assert.ok(builder.includes('No selections yet.'));
+    assert.ok(builder.includes('Slip not saved'));
 
     assert.ok(manager.includes('Loading slips…'));
     assert.ok(manager.includes('Publishing…'));
@@ -1031,3 +1032,4 @@ test('browser scripts parse and the stylesheet defines the state classes they to
     assert.ok(css.includes('@media (max-width: 1024px)'), 'stylesheet is missing the tablet/mobile breakpoint');
     assert.ok(css.includes('@media (max-width: 560px)'), 'stylesheet is missing the mobile breakpoint');
 });
+

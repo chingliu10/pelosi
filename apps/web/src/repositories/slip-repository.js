@@ -94,9 +94,12 @@ export async function listSlips(filters = {}, db = pool) {
           AND ($2::varchar IS NULL OR s.publication_status = $2)
           AND ($3::varchar IS NULL OR s.creation_type = $3)
           AND ($6::varchar[] IS NULL OR s.result = ANY($6::varchar[]))
+          AND ($7::date IS NULL OR (s.published_at AT TIME ZONE $8)::date = $7::date)
         ${filters.sort === 'settled'
             ? 'ORDER BY s.settled_at DESC NULLS LAST, s.id DESC'
-            : 'ORDER BY s.slip_date DESC, s.id DESC'}
+            : (filters.sort === 'published'
+                ? 'ORDER BY s.published_at DESC NULLS LAST, s.id DESC'
+                : 'ORDER BY s.slip_date DESC, s.id DESC')}
         LIMIT $4
         OFFSET $5
         `,
@@ -106,7 +109,9 @@ export async function listSlips(filters = {}, db = pool) {
             filters.creationType ?? null,
             filters.limit ?? 50,
             filters.offset ?? 0,
-            filters.results ?? null
+            filters.results ?? null,
+            filters.publicationDate ?? null,
+            filters.timezone ?? 'UTC'
         ]
     );
 
@@ -126,12 +131,15 @@ export async function countSlips(filters = {}, db = pool) {
           AND ($2::varchar IS NULL OR s.publication_status = $2)
           AND ($3::varchar IS NULL OR s.creation_type = $3)
           AND ($4::varchar[] IS NULL OR s.result = ANY($4::varchar[]))
+          AND ($5::date IS NULL OR (s.published_at AT TIME ZONE $6)::date = $5::date)
         `,
         [
             filters.result ?? null,
             filters.publicationStatus ?? null,
             filters.creationType ?? null,
-            filters.results ?? null
+            filters.results ?? null,
+            filters.publicationDate ?? null,
+            filters.timezone ?? 'UTC'
         ]
     );
 
@@ -324,6 +332,9 @@ export async function getSlipWithLegs(id, db = pool) {
             t.settled_at AS tip_settled_at,
 
             m.starts_at,
+            m.status AS match_status,
+            m.home_score,
+            m.away_score,
             ht.name AS home_team,
             at.name AS away_team,
             c.name AS competition

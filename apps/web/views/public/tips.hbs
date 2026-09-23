@@ -1,0 +1,51 @@
+<section class="page-hero" data-page="public-tips">
+    <div>
+        <p class="eyebrow">Public selections</p>
+        <h1>Today's Tips</h1>
+        <p class="page-hero__subtitle">Selections for matches on <time id="tips-date-label" datetime="{{selectedDate}}">{{selectedDate}}</time>.</p>
+        <p class="page-hero__timezone">Match dates use {{timezone}}.</p>
+    </div>
+
+    <div class="date-tools" aria-label="Date navigation">
+        <a class="date-tools__link" id="previous-day" href="/tips">Previous day</a>
+        <a class="date-tools__link" id="today-link" href="/tips">Today</a>
+        <a class="date-tools__link" id="next-day" href="/tips">Next day</a>
+    </div>
+</section>
+
+<section class="tips-panel" aria-labelledby="tips-heading">
+    <div class="tips-toolbar">
+        <div>
+            <h2 id="tips-heading">Published Tips</h2>
+            <p class="muted">Only selections attached to currently published slips are shown.</p>
+        </div>
+
+        <div class="result-tabs" role="list" aria-label="Result filters">
+            <a class="result-tab" href="/tips?result=all" data-result-filter="all">All</a>
+            <a class="result-tab" href="/tips?result=pending" data-result-filter="pending">Pending</a>
+            <a class="result-tab" href="/tips?result=won" data-result-filter="won">Won</a>
+            <a class="result-tab" href="/tips?result=lost" data-result-filter="lost">Lost</a>
+            <a class="result-tab" href="/tips?result=void" data-result-filter="void">Void</a>
+        </div>
+    </div>
+
+    <div class="summary-bar" id="tips-summary" aria-live="polite">
+        <span>Loading tips...</span>
+    </div>
+
+    <div class="state-message" id="tips-loading" aria-busy="true">Loading tips...</div>
+    <div class="state-message is-hidden" id="tips-empty">No tips have been published for this date yet.</div>
+    <div class="state-message state-message--error is-hidden" id="tips-error">
+        <span>Tips could not be loaded right now.</span>
+        <button class="btn-link" type="button" id="tips-retry">Try again</button>
+    </div>
+
+    <div class="tips-grid" id="tips-grid" aria-live="polite"></div>
+</section>
+
+<script>
+    window.WachimbaTipsPage = {
+        selectedDate: "{{selectedDate}}",
+        timezone: "{{timezone}}"
+    };
+</script>

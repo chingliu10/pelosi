@@ -1,0 +1,43 @@
+<section class="page-hero" data-page="public-slips" data-slip-id="{{slipId}}">
+    <div>
+        <p class="eyebrow">Published betting cards</p>
+        <h1>Today's Slips</h1>
+        <p class="page-hero__subtitle">Published selections for today's betting cards.</p>
+        <p class="page-hero__timezone" id="slips-timezone"></p>
+    </div>
+    <nav class="date-tools" aria-label="Slip dates">
+        <a class="date-tools__link" id="slips-prev-date" href="/slips">Previous day</a>
+        <a class="date-tools__link" id="slips-today" href="/slips">Today</a>
+        <a class="date-tools__link" id="slips-next-date" href="/slips">Next day</a>
+    </nav>
+</section>
+
+<section class="tips-panel" aria-labelledby="slips-heading">
+    <div class="tips-toolbar">
+        <div>
+            <h2 id="slips-heading">Published Slips</h2>
+            <p class="muted" id="slips-context">Showing slips by publication date.</p>
+        </div>
+        <div class="result-tabs" aria-label="Filter slips by result">
+            <a class="result-tab" href="/slips" data-result-filter="all">All</a>
+            <a class="result-tab" href="/slips?result=pending" data-result-filter="pending">Pending</a>
+            <a class="result-tab" href="/slips?result=won" data-result-filter="won">Won</a>
+            <a class="result-tab" href="/slips?result=lost" data-result-filter="lost">Lost</a>
+            <a class="result-tab" href="/slips?result=void" data-result-filter="void">Void</a>
+        </div>
+    </div>
+
+    <div class="summary-bar" id="slips-summary" aria-live="polite">
+        <span>Loading slips...</span>
+    </div>
+
+    <div class="state-message" id="slips-loading" aria-busy="true">Loading slips...</div>
+    <div class="state-message is-hidden" id="slips-empty">No slips have been published yet.</div>
+    <div class="state-message state-message--error is-hidden" id="slips-error">
+        <span>Slips could not be loaded right now.</span>
+        <button class="btn-link" type="button" id="slips-retry">Try again</button>
+    </div>
+
+    <div class="tips-grid" id="slips-grid" aria-live="polite"></div>
+    <article class="slip-detail is-hidden" id="slip-detail" aria-labelledby="slip-detail-title"></article>
+</section>

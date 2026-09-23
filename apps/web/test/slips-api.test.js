@@ -409,7 +409,7 @@ test('drafts and hidden slips are invisible on the public slip API', async () =>
 
     assert.equal(publicList.status, 200);
     assert.equal(publicList.body.slips.some((slip) => slip.id === invisibleId), false);
-    assert.ok(publicList.body.slips.every((slip) => slip.publicationStatus === 'published'));
+    assert.ok(publicList.body.slips.every((slip) => slip.publicationStatus === undefined));
     assert.equal(publicDetail.status, 404);
 });
 

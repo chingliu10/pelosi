@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{pageTitle}} | Wachimba Odds</title>
+    <link rel="stylesheet" href="/css/public.css">
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="brand" href="/slips" aria-label="Wachimba Odds home">
+                <span class="brand__mark" aria-hidden="true">WO</span>
+                <span class="brand__text">Wachimba Odds</span>
+            </a>
+
+            <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="public-nav">
+                <span class="nav-toggle__bar"></span>
+                <span class="nav-toggle__bar"></span>
+                <span class="nav-toggle__bar"></span>
+                <span class="sr-only">Toggle navigation</span>
+            </button>
+
+            <nav class="public-nav" id="public-nav" aria-label="Public sections">
+                {{#each nav}}
+                    {{#if this.available}}
+                        <a class="public-nav__link{{#if this.active}} is-active{{/if}}" href="{{this.href}}"{{#if this.active}} aria-current="page"{{/if}}>{{this.label}}</a>
+                    {{else}}
+                        <span class="public-nav__link is-disabled" aria-disabled="true">{{this.label}}</span>
+                    {{/if}}
+                {{/each}}
+                <span class="public-nav__link is-disabled" aria-disabled="true">Login</span>
+            </nav>
+        </div>
+    </header>
+
+    <main class="site-main" id="main">
+        {{{body}}}
+    </main>
+
+    {{#each pageScripts}}
+    <script src="{{this}}" defer></script>
+    {{/each}}
+</body>
+</html>

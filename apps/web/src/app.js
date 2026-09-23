@@ -15,9 +15,12 @@ import {
 import { requireAuth } from './middleware/require-auth.js';
 import adminRoutes from './routes/admin/admin-routes.js';
 import dashboardRoutes from './routes/api/admin/dashboard-routes.js';
+import slipBuilderRoutes from './routes/api/admin/slip-builder-routes.js';
 import authRoutes from './routes/api/auth-routes.js';
 import performanceRoutes from './routes/api/performance-routes.js';
+import publicRoutes from './routes/public/public-routes.js';
 import publicSlipRoutes from './routes/api/public-slip-routes.js';
+import publicTipRoutes from './routes/api/public-tip-routes.js';
 import settlementRoutes from './routes/api/settlement-routes.js';
 import slipRoutes from './routes/api/slip-routes.js';
 import tipsRoutes from './routes/api/tips-routes.js';
@@ -45,9 +48,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(createSessionMiddleware());
 app.use(express.static(path.join(webRoot, 'public')));
 
-app.get('/', (req, res) => {
-    res.send('Pelosi server is running');
-});
+// Customer-facing pages.
+app.use('/', publicRoutes);
 
 // Server-rendered admin screens (session protected, no TrueOdds calls here).
 app.use('/admin', adminRoutes);
@@ -62,6 +64,9 @@ app.use('/api/v1/slips', slipRoutes);
 // Public follower API: published slips only.
 app.use('/api/v1/public/slips', publicSlipRoutes);
 
+// Public visitor API: tips visible through currently published slips only.
+app.use('/api/v1/public/tips', publicTipRoutes);
+
 // Public performance/history reads.
 app.use('/api/v1/performance', performanceRoutes);
 
@@ -70,6 +75,9 @@ app.use('/api/v1/tips', tipsRoutes);
 
 // Admin dashboard overview (aggregates existing services, read-only).
 app.use('/api/v1/admin/dashboard', dashboardRoutes);
+
+// Admin temporary slip builder (server-side session backed).
+app.use('/api/v1/admin/slip-builder', slipBuilderRoutes);
 
 // Settlement is admin-only.
 app.use('/api/v1/settlement', settlementRoutes);
