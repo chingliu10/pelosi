@@ -1,14 +1,12 @@
 # Admin Slips: Builder and Manager
 
-The daily admin workflow for slips: pick pending tips, build a draft, then
-publish, hide or republish from the Slips screen.
+The daily admin workflow for slips: search TrueOdds inside the builder, add
+selections to a temporary server-side slip, save one private draft, then publish,
+hide or republish from the Slips screen.
 
 ```text
-/admin/tips        -> Tips Manager (see tips_api_and_admin_manager.md)
-      | Build slip
-      v
-/admin/slips/new   -> Slip Builder  (pending tips -> draft slip)
-      | Create draft
+/admin/slips/new   -> Slip Builder  (TrueOdds selections -> temporary slip -> draft)
+      | Save slip
       v
 /admin/slips       -> Slip Manager  (list -> detail -> publish / hide)
       |
@@ -17,6 +15,10 @@ publish, hide or republish from the Slips screen.
 
 The backend stays authoritative for every financial value: total odds, stake,
 result, publication status, return and profit units.
+
+The temporary builder API, 24-hour session expiry, save-time TrueOdds resolution,
+tip reuse and Single/Double/Treble/N-Fold Accumulator labels are documented in
+[`slip_builder.md`](./slip_builder.md).
 
 ## Slip creation rules (backend)
 
@@ -130,8 +132,8 @@ cd apps/web && npm test
 
 ## Not built yet
 
-Public site, same-game parlays, editable stakes and slip editing/deletion. The
-settlement monitor, the performance screen and the admin dashboard now exist -
-see [`admin_settlement_monitor.md`](./admin_settlement_monitor.md),
+Same-game parlays, editable stakes and slip editing/deletion. The public slips
+page, settlement monitor, performance screen and admin dashboard now exist - see
+[`public_slips.md`](./public_slips.md), [`admin_settlement_monitor.md`](./admin_settlement_monitor.md),
 [`admin_performance.md`](./admin_performance.md) and
 [`admin_dashboard.md`](./admin_dashboard.md).

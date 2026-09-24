@@ -37,6 +37,7 @@ Routers:
 
 ```text
 apps/web/src/routes/api/slip-routes.js          mounted at /api/v1/slips
+apps/web/src/routes/api/public-slip-routes.js   mounted at /api/v1/public/slips
 apps/web/src/routes/api/performance-routes.js   mounted at /api/v1/performance
 ```
 
@@ -93,10 +94,27 @@ Response:
 }
 ```
 
-The list intentionally returns light rows plus `legCount`; the nested tip/match
-structure stays on `GET /api/v1/slips/:id`. No separate public-history
-repository exists or is needed - the admin list takes `?publicationStatus=` and
-the public list is the published-only `GET /api/v1/public/slips`.
+The admin list intentionally returns light rows plus `legCount`; the nested
+tip/match structure stays on `GET /api/v1/slips/:id`.
+
+`slip_date` is an internal/admin business date for when a slip is created or
+saved. New slips default it to today's calendar date in `APP_TIMEZONE`; callers
+may still supply an explicit `slipDate` where supported. Public pages do not use
+`slip_date` for chronology.
+
+The public list is separate and safe for anonymous callers:
+
+```http
+GET /api/v1/public/slips?date=YYYY-MM-DD&result=all
+```
+
+Public feed dates are based on `published_at` interpreted in `APP_TIMEZONE`, not
+on any leg kickoff. Rows are sorted by publication chronology
+(`published_at DESC, id DESC`). Public rows omit admin fields such as
+`publicationStatus` and `creationType` and include a derived `slipType` label.
+For public History, callers pass `scope=history` to list all published dates
+instead of today's slips. See [`public_slips.md`](./public_slips.md) and
+[`public_performance_history.md`](./public_performance_history.md).
 
 ## Publishing
 
@@ -187,6 +205,23 @@ Field names map to the metric names used elsewhere in the project:
 The metrics are derived from the `slips` ledger in a single aggregate query in
 `apps/web/src/repositories/performance-repository.js`. There is no performance
 table.
+
+## Public product
+
+Public customers consume published slips, not loose individual tips as the
+primary product. The primary public page is `GET /slips`, backed by the safe
+public slip API. `GET /` redirects to `/slips`, and `GET /tips` redirects to
+`/slips` while the public tips API remains available for later history/detail
+features.
+
+Public feed chronology uses `published_at`. A slip may contain selections from
+different match dates, so Pelosi does not infer a public slip date from one
+selection's kickoff.
+
+`GET /performance` reuses `GET /api/v1/performance` and
+`GET /api/v1/performance/history` without changing formulas. `GET /history`
+reuses `GET /api/v1/public/slips?scope=history`; hidden and draft slips never
+appear.
 
 ## Public tip visibility
 

@@ -1,0 +1,120 @@
+<section class="home-hero" data-page="public-home">
+    <div class="home-hero__content">
+        <p class="eyebrow">Wachimba Odds</p>
+        <h1>Smarter football selections. Transparent results.</h1>
+        <p class="home-hero__text">Published slips, tracked performance, and complete result history.</p>
+        <div class="home-actions">
+            <a class="home-button home-button--primary" href="/slips">View Today's Slips</a>
+            <a class="home-button" href="/performance">View Performance</a>
+        </div>
+    </div>
+    <aside class="home-snapshot" aria-labelledby="snapshot-heading">
+        <h2 id="snapshot-heading">Public record</h2>
+        <p>Every homepage number comes from published Wachimba Odds slips and public performance data.</p>
+        <dl class="home-snapshot__stats">
+            <div>
+                <dt>Today's slips</dt>
+                <dd id="home-snapshot-slips">Loading...</dd>
+            </div>
+            <div>
+                <dt>All-time profit</dt>
+                <dd id="home-snapshot-profit">Loading...</dd>
+            </div>
+            <div>
+                <dt>Recent result</dt>
+                <dd id="home-snapshot-result">Loading...</dd>
+            </div>
+        </dl>
+    </aside>
+</section>
+
+<section class="home-section" aria-labelledby="home-slips-heading">
+    <div class="home-section__header">
+        <div>
+            <p class="eyebrow">Published today</p>
+            <h2 id="home-slips-heading">Today's Slips</h2>
+            <p class="muted">Current published betting slips from Wachimba Odds.</p>
+        </div>
+        <a class="view-link home-section__link" href="/slips">View all slips</a>
+    </div>
+    <div class="state-message" id="home-slips-loading" aria-busy="true">Loading today's slips...</div>
+    <div class="state-message is-hidden" id="home-slips-empty">No slips have been published for today yet. <a href="/history">View History</a></div>
+    <div class="state-message state-message--error is-hidden" id="home-slips-error">Today's slips are temporarily unavailable.</div>
+    <div class="home-card-grid" id="home-slips-grid" aria-live="polite"></div>
+</section>
+
+<section class="home-section" aria-labelledby="home-performance-heading">
+    <div class="home-section__header">
+        <div>
+            <p class="eyebrow">Public performance</p>
+            <h2 id="home-performance-heading">Performance Snapshot</h2>
+            <p class="muted">Performance is calculated from published settled slips.</p>
+        </div>
+        <a class="view-link home-section__link" href="/performance">View full performance</a>
+    </div>
+    <div class="state-message" id="home-performance-loading" aria-busy="true">Loading performance...</div>
+    <div class="state-message is-hidden" id="home-performance-empty">No settled public slips yet.</div>
+    <div class="state-message state-message--error is-hidden" id="home-performance-error">Performance is temporarily unavailable.</div>
+    <div class="metric-grid home-metric-grid" id="home-performance-metrics" aria-live="polite"></div>
+</section>
+
+<section class="home-section" aria-labelledby="home-history-heading">
+    <div class="home-section__header">
+        <div>
+            <p class="eyebrow">Recent record</p>
+            <h2 id="home-history-heading">Recent Results</h2>
+            <p class="muted">Newest published slips from the public history.</p>
+        </div>
+        <a class="view-link home-section__link" href="/history">View full history</a>
+    </div>
+    <div class="state-message" id="home-history-loading" aria-busy="true">Loading recent results...</div>
+    <div class="state-message is-hidden" id="home-history-empty">No published history yet.</div>
+    <div class="state-message state-message--error is-hidden" id="home-history-error">Recent results are temporarily unavailable.</div>
+    <div class="history-list home-history-list" id="home-history-list" aria-live="polite"></div>
+</section>
+
+<section class="home-section home-explain" aria-labelledby="how-it-works-heading">
+    <div>
+        <p class="eyebrow">Process</p>
+        <h2 id="how-it-works-heading">How Wachimba Odds Works</h2>
+    </div>
+    <div class="home-steps">
+        <article>
+            <span>1</span>
+            <h3>Slips are published</h3>
+            <p>Published slips are the betting product customers can inspect.</p>
+        </article>
+        <article>
+            <span>2</span>
+            <h3>Selections and odds are recorded</h3>
+            <p>Each slip shows its selections and stored odds snapshot.</p>
+        </article>
+        <article>
+            <span>3</span>
+            <h3>Results are settled</h3>
+            <p>When matches finish, slip results and profit/loss are recorded.</p>
+        </article>
+        <article>
+            <span>4</span>
+            <h3>Performance stays visible</h3>
+            <p>Settled published slips feed the public performance and history.</p>
+        </article>
+    </div>
+</section>
+
+<section class="home-section home-trust" aria-labelledby="transparency-heading">
+    <div>
+        <p class="eyebrow">Transparent by design</p>
+        <h2 id="transparency-heading">Every published result contributes to the public record.</h2>
+        <p>Performance is based on settled published slips, and odds shown on public pages are stored snapshots from the slip record.</p>
+    </div>
+</section>
+
+<section class="home-final" aria-labelledby="home-final-heading">
+    <h2 id="home-final-heading">See today's published slips</h2>
+    <p>Review the current slips, then check the full performance and history record.</p>
+    <div class="home-actions">
+        <a class="home-button home-button--primary" href="/slips">See Today's Published Slips</a>
+        <a class="home-button" href="/performance">Review Performance</a>
+    </div>
+</section>

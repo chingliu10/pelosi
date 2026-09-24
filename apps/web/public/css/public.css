@@ -177,6 +177,220 @@ select {
     padding: 34px 20px 64px;
 }
 
+.site-footer {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.site-footer__inner {
+    width: min(100%, 1320px);
+    margin: 0 auto;
+    padding: 24px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--muted);
+}
+
+.site-footer__brand {
+    margin: 0;
+    color: var(--text);
+    font-weight: 850;
+}
+
+.site-footer__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.site-footer__nav a {
+    color: var(--muted);
+    font-weight: 750;
+    text-decoration: none;
+}
+
+.site-footer__note {
+    margin: 0;
+}
+
+.home-hero,
+.home-section,
+.home-final {
+    margin-bottom: 22px;
+}
+
+.home-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.55fr);
+    gap: 20px;
+    align-items: stretch;
+}
+
+.home-hero__content,
+.home-snapshot,
+.home-section,
+.home-final {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.home-hero__content {
+    padding: clamp(28px, 5vw, 52px);
+}
+
+.home-hero__text {
+    max-width: 660px;
+    color: #344054;
+    font-size: 1.12rem;
+}
+
+.home-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.home-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 15px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-weight: 850;
+    text-decoration: none;
+}
+
+.home-button--primary {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: #ffffff;
+}
+
+.home-snapshot {
+    padding: 22px;
+}
+
+.home-snapshot h2 {
+    margin-bottom: 8px;
+}
+
+.home-snapshot__stats {
+    display: grid;
+    gap: 12px;
+    margin: 18px 0 0;
+}
+
+.home-snapshot__stats div {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+.home-snapshot__stats dt {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 750;
+}
+
+.home-snapshot__stats dd {
+    margin: 4px 0 0;
+    font-size: 1.35rem;
+    font-weight: 850;
+    font-variant-numeric: tabular-nums;
+}
+
+.home-section,
+.home-final {
+    padding: 22px;
+}
+
+.home-section__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.home-section__link {
+    min-width: 154px;
+    margin-top: 0;
+}
+
+.home-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.home-metric-grid {
+    margin-bottom: 0;
+}
+
+.home-history-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.home-explain {
+    display: grid;
+    gap: 18px;
+}
+
+.home-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.home-steps article {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    background: #fbfcfd;
+}
+
+.home-steps span {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 12px;
+    border-radius: 999px;
+    background: var(--brand);
+    color: #ffffff;
+    font-weight: 850;
+}
+
+.home-steps h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+
+.home-steps p,
+.home-trust p,
+.home-final p {
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.home-trust {
+    background: #fbfcfd;
+}
+
+.home-final {
+    text-align: center;
+}
+
+.home-final .home-actions {
+    justify-content: center;
+}
+
 .page-hero {
     display: flex;
     justify-content: space-between;
@@ -735,8 +949,19 @@ h2 {
         grid-template-columns: 1fr;
     }
 
+    .home-hero,
+    .home-card-grid,
+    .home-history-list {
+        grid-template-columns: 1fr;
+    }
+
+    .home-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .page-hero,
-    .tips-toolbar {
+    .tips-toolbar,
+    .home-section__header {
         align-items: stretch;
         flex-direction: column;
     }
@@ -779,6 +1004,22 @@ h2 {
 
     .site-main {
         padding: 26px 16px 48px;
+    }
+
+    .site-footer__inner {
+        align-items: flex-start;
+        flex-direction: column;
+        padding-inline: 16px;
+    }
+
+    .home-actions,
+    .home-button,
+    .home-section__link {
+        width: 100%;
+    }
+
+    .home-steps {
+        grid-template-columns: 1fr;
     }
 
     .tips-panel {

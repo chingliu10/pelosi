@@ -4,6 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{pageTitle}} | Wachimba Odds</title>
+    {{#if metaDescription}}
+    <meta name="description" content="{{metaDescription}}">
+    {{/if}}
     <link rel="stylesheet" href="/css/public.css">
 </head>
 <body>
@@ -11,7 +14,7 @@
 
     <header class="site-header">
         <div class="site-header__inner">
-            <a class="brand" href="/slips" aria-label="Wachimba Odds home">
+            <a class="brand" href="/" aria-label="Wachimba Odds home">
                 <span class="brand__mark" aria-hidden="true">WO</span>
                 <span class="brand__text">Wachimba Odds</span>
             </a>
@@ -39,6 +42,19 @@
     <main class="site-main" id="main">
         {{{body}}}
     </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <p class="site-footer__brand">Wachimba Odds</p>
+            <nav class="site-footer__nav" aria-label="Footer navigation">
+                <a href="/">Home</a>
+                <a href="/slips">Today's Slips</a>
+                <a href="/performance">Performance</a>
+                <a href="/history">History</a>
+            </nav>
+            <p class="site-footer__note">Betting involves risk.</p>
+        </div>
+    </footer>
 
     {{#each pageScripts}}
     <script src="{{this}}" defer></script>

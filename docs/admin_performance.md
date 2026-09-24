@@ -13,6 +13,11 @@ published settled slips.
 PostgreSQL (slips)   --  no TrueOdds call anywhere on this screen
 ```
 
+Public visitors see the same formula set at
+[`/performance`](./public_performance_history.md) and
+[`/history`](./public_performance_history.md). Those pages reuse the existing
+performance APIs; they do not define a separate public ROI calculation.
+
 ## Counting rules (unchanged)
 
 Only slips with:

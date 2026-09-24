@@ -1,14 +1,33 @@
-# Public Today's Tips
+# Public Tips API
 
-The first customer-facing surface is intentionally small:
+This is a secondary selection-level API. Wachimba Odds primarily publishes
+slips: a slip is the customer betting product, and a tip is one individual
+selection/leg inside a slip.
+
+Primary public routes:
 
 ```text
-GET /tips
+GET /slips
+GET /slips/:id
+GET /performance
+GET /history
+```
+
+The legacy `/tips` page route currently redirects to `/slips`. The public tips
+API remains intentionally available for future selection-level history,
+analytics or individual selection detail:
+
+```text
 GET /api/v1/public/tips
 GET /api/v1/public/tips/:id
 ```
 
-`GET /` currently redirects to `/tips` until a public home page exists.
+Current product model:
+
+```text
+TIP  = one betting selection / leg
+SLIP = the published customer product
+```
 
 ## Visibility rule
 
@@ -105,7 +124,7 @@ Public responses deliberately exclude TrueOdds/source identifiers,
 `creationType`, admin metadata, session data, debug fields and database
 implementation details.
 
-## Frontend
+## Dormant frontend files
 
 ```text
 apps/web/views/layouts/public.hbs
@@ -115,7 +134,10 @@ apps/web/public/js/public/site.js
 apps/web/public/js/public/tips.js
 ```
 
-The browser only calls `/api/v1/public/tips`; it never calls the admin tips API
-or any TrueOdds endpoint. Loading, empty and error states are rendered in the
-page shell, result filters are kept in the URL, and cards show only stored data:
-competition, teams, kickoff, prediction, market, odds snapshot and result.
+The public `/tips` route redirects to `/slips`, so these files are kept as a
+legacy/future secondary selection-level surface rather than as a primary
+customer page. If re-enabled later, the browser code only calls
+`/api/v1/public/tips`; it never calls the admin tips API or any TrueOdds
+endpoint. Loading, empty and error states are rendered in the page shell, result
+filters are kept in the URL, and cards show only stored data: competition,
+teams, kickoff, prediction, market, odds snapshot and result.

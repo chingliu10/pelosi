@@ -49,3 +49,4 @@ CREATE INDEX idx_session_expire
 ON session (expire);
 
 COMMIT;
+

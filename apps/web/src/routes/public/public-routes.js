@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import {
-    redirectHomeToSlips,
     redirectTipsToSlips,
     renderHistoryPage,
+    renderHomePage,
     renderPerformancePage,
     renderSlipsPage
 } from '../../controllers/public-page-controller.js';
 
 const router = Router();
 
-router.get('/', redirectHomeToSlips);
+router.get('/', renderHomePage);
 router.get('/tips', redirectTipsToSlips);
 router.get('/slips', renderSlipsPage);
 router.get('/slips/:id', renderSlipsPage);

@@ -1,12 +1,23 @@
 const publicNav = [
+    { key: 'home', label: 'Home', href: '/', available: true },
     { key: 'slips', label: 'Today\'s Slips', href: '/slips', available: true },
     { key: 'performance', label: 'Performance', href: '/performance', available: true },
     { key: 'history', label: 'History', href: '/history', available: true },
     { key: 'pricing', label: 'Pricing', available: false }
 ];
 
-export function redirectHomeToSlips(req, res) {
-    res.redirect(302, '/slips');
+export function renderHomePage(req, res, next) {
+    try {
+        res.render('public/home', {
+            layout: 'public',
+            pageTitle: 'Football Betting Slips & Performance',
+            metaDescription: 'Wachimba Odds publishes football betting slips with transparent historical performance and results.',
+            pageScripts: ['/js/public/site.js', '/js/public/ui.js', '/js/public/home.js'],
+            nav: buildNav('home')
+        });
+    } catch (error) {
+        next(error);
+    }
 }
 
 export function redirectTipsToSlips(req, res) {

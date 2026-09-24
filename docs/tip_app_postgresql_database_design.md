@@ -1,5 +1,12 @@
 # Tip App PostgreSQL Database Design
 
+## Project Naming
+
+Pelosi is the internal software platform, repository and backend name. Wachimba
+Odds is the customer-facing betting product/brand powered by Pelosi. Keep
+technical architecture, API and database references as Pelosi where appropriate;
+public website copy, page titles and customer/member UI should use Wachimba Odds.
+
 ## Overview
 
 The core architecture is:

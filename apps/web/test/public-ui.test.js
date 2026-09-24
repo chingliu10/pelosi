@@ -34,13 +34,24 @@ test.after(async () => {
     await pool.end();
 });
 
-test('GET / redirects to public slips and /tips redirects to /slips', async () => {
+test('GET / renders the public homepage and /tips redirects to /slips', async () => {
     const home = await request('/');
     const tips = await request('/tips?date=2031-06-15');
     const slips = await request('/slips');
 
-    assert.equal(home.status, 302);
-    assert.equal(home.location, '/slips');
+    assert.equal(home.status, 200);
+    assert.equal(home.location, null);
+    assert.match(home.text, /<title>Football Betting Slips &amp; Performance \| Wachimba Odds<\/title>/);
+    assert.match(home.text, /href="\/" aria-label="Wachimba Odds home"/);
+    assert.match(home.text, /aria-current="page">Home<\/a>/);
+    assert.match(home.text, /Smarter football selections/);
+    assert.match(home.text, /href="\/slips">View Today(?:'|&#x27;)s Slips<\/a>/);
+    assert.match(home.text, /href="\/performance">View Performance<\/a>/);
+    assert.match(home.text, /id="home-slips-grid"/);
+    assert.match(home.text, /id="home-performance-metrics"/);
+    assert.match(home.text, /id="home-history-list"/);
+    assert.match(home.text, /How Wachimba Odds Works/);
+    assert.match(home.text, /Transparent by design/);
     assert.equal(tips.status, 302);
     assert.equal(tips.location, '/slips');
     assert.equal(slips.status, 200);
@@ -144,6 +155,42 @@ test('public history browser script uses public slips, filters and pagination', 
     assert.doesNotMatch(script, /\/api\/v1\/slips/);
 });
 
+test('public homepage browser script uses public APIs with isolated states', async () => {
+    const script = await readFile(new URL('../public/js/public/home.js', import.meta.url), 'utf8');
+    const view = await readFile(new URL('../views/public/home.hbs', import.meta.url), 'utf8');
+    const css = await readFile(new URL('../public/css/public.css', import.meta.url), 'utf8');
+    const combined = `${script}\n${view}`;
+
+    assert.match(script, /\/api\/v1\/public\/slips\?limit=3/);
+    assert.match(script, /\/api\/v1\/performance\?range=all/);
+    assert.match(script, /\/api\/v1\/public\/slips\?scope=history&sort=published&limit=5/);
+    assert.match(script, /\/slips\/\$\{encodeURIComponent\(slip.id\)\}/);
+    assert.match(script, /\+ \$\{hiddenCount\} more selection/);
+    assert.match(script, /formatSignedUnits/);
+    assert.match(script, /formatSignedPercent/);
+    assert.match(view, /Loading today's slips/);
+    assert.match(view, /Loading performance/);
+    assert.match(view, /Loading recent results/);
+    assert.match(view, /No slips have been published for today yet/);
+    assert.match(view, /No settled public slips yet/);
+    assert.match(view, /No published history yet/);
+    assert.match(view, /temporarily unavailable/);
+    assert.match(css, /home-hero/);
+    assert.match(css, /home-card-grid/);
+    assert.match(css, /home-steps/);
+    assert.doesNotMatch(combined, /\/api\/trueodds/);
+    assert.doesNotMatch(combined, /TRUEODDS/);
+    assert.doesNotMatch(combined, /\/api\/v1\/admin/);
+    assert.doesNotMatch(combined, /\/api\/v1\/tips/);
+    assert.doesNotMatch(combined, /\/api\/v1\/slips/);
+    assert.doesNotMatch(view, /Pelosi/);
+    assert.doesNotMatch(view, /TrueOdds/);
+
+    for (const forbidden of ['Guaranteed', 'Sure bets', '100% win', 'Risk free', 'Beat the bookmaker', 'Never lose']) {
+        assert.equal(combined.includes(forbidden), false, `${forbidden} should not appear on the homepage`);
+    }
+});
+
 test('public slips UI includes product labels, filters, anchors and safe states', async () => {
     const script = await readFile(new URL('../public/js/public/slips.js', import.meta.url), 'utf8');
     const css = await readFile(new URL('../public/css/public.css', import.meta.url), 'utf8');
@@ -196,6 +243,7 @@ test('mobile navigation is accessible and responsive classes exist', async () =>
     assert.match(layout, /aria-expanded="false"/);
     assert.match(layout, /aria-controls="public-nav"/);
     assert.match(layout, /aria-label="Public sections"/);
+    assert.match(layout, /<footer class="site-footer">/);
     assert.match(script, /aria-expanded/);
     assert.match(script, /Escape/);
     assert.match(css, /@media \(max-width: 980px\)/);
@@ -204,6 +252,7 @@ test('mobile navigation is accessible and responsive classes exist', async () =>
     assert.match(css, /metric-grid/);
     assert.match(css, /public-analytics/);
     assert.match(css, /history-card/);
+    assert.match(css, /site-footer/);
 });
 
 test('public UI does not hard-code source IDs or fabricated analysis content', async () => {

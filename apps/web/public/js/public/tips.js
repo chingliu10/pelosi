@@ -1,6 +1,9 @@
 (() => {
     'use strict';
 
+    // Secondary/future selection-level surface. The public /tips route currently
+    // redirects to /slips; keep this script aligned with the safe public tips API
+    // for later selection history/detail work.
     const page = window.WachimbaTipsPage || {};
     const params = new URLSearchParams(window.location.search);
     const selectedDate = params.get('date') || page.selectedDate;

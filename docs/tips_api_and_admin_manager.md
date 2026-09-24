@@ -195,6 +195,7 @@ apps/web/test/tips-api.test.js
 
 ## Not built yet
 
-Editing or deleting tips from the manager. The public Today's Tips surface now
-exists, but public tip detail UI, public slips, subscriptions and member accounts
-are later tasks.
+Editing or deleting tips from the manager. Public customers currently consume
+published slips at `/slips`; the public tips API remains available as a secondary
+selection-level contract for later history/detail work. Subscriptions and member
+accounts are later tasks.

@@ -171,7 +171,39 @@ test('saving one selection creates a Single draft and clears the builder', async
     assert.equal(Number(saved.slip.stakeUnits), 1);
     assert.equal(saved.slip.totalOdds, 1.91);
     assert.equal(saved.slip.tips[0].odds, 1.91);
+    assert.deepEqual(saved.createdTipIds, [saved.slip.tips[0].id]);
+    assert.deepEqual(saved.reusedTipIds, []);
     assert.equal(getBuilder(request).selectionCount, 0);
+});
+
+test('builder slipDate uses APP_TIMEZONE for future saved slips', async () => {
+    const previousTimezone = process.env.APP_TIMEZONE;
+    const request = req({});
+    const saveResolver = resolver({ [`${sourceOddsPrefix}-timezone`]: 1.93 });
+
+    process.env.APP_TIMEZONE = 'Asia/Riyadh';
+
+    try {
+        await addBuilderSelection(
+            request,
+            { matchId: `${matchPrefix}-timezone`, sourceOddsId: `${sourceOddsPrefix}-timezone` },
+            { resolveSelection: saveResolver, now: new Date('2031-08-01T20:00:00.000Z') }
+        );
+
+        const saved = await saveBuilderSlip(
+            request,
+            {},
+            { resolveSelection: saveResolver, now: new Date('2031-08-01T22:30:00.000Z') }
+        );
+
+        createdSlipIds.push(saved.slip.id);
+        const stored = await pool.query('SELECT slip_date::text AS slip_date FROM slips WHERE id = $1', [saved.slip.id]);
+
+        assert.equal(stored.rows[0].slip_date, '2031-08-02');
+    } finally {
+        if (previousTimezone === undefined) delete process.env.APP_TIMEZONE;
+        else process.env.APP_TIMEZONE = previousTimezone;
+    }
 });
 
 test('saving two distinct matches creates a Double with builder order and save-time odds', async () => {
@@ -202,6 +234,8 @@ test('existing pending tips are reused and settled duplicates block unsafe live 
     const first = await saveBuilderSlip(firstReq, {}, { resolveSelection: saveResolver });
 
     createdSlipIds.push(first.slip.id);
+    assert.deepEqual(first.createdTipIds, [first.slip.tips[0].id]);
+    assert.deepEqual(first.reusedTipIds, []);
 
     const secondReq = req({});
 

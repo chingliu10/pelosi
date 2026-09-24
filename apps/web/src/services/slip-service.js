@@ -138,7 +138,7 @@ export async function createSlip(data) {
         const slip = await createSlipRecord(
             {
                 title: data.title ?? null,
-                slipDate: data.slipDate ?? new Date().toISOString().slice(0, 10),
+                slipDate: data.slipDate ?? todayInAppTimezone(),
                 totalOdds,
                 stakeUnits: 1,
                 creationType: data.creationType ?? 'manual'

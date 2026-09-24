@@ -1,8 +1,8 @@
 <section class="page-hero" data-page="public-tips">
     <div>
-        <p class="eyebrow">Public selections</p>
-        <h1>Today's Tips</h1>
-        <p class="page-hero__subtitle">Selections for matches on <time id="tips-date-label" datetime="{{selectedDate}}">{{selectedDate}}</time>.</p>
+        <p class="eyebrow">Secondary selection API</p>
+        <h1>Selection-Level View</h1>
+        <p class="page-hero__subtitle">Individual selections for matches on <time id="tips-date-label" datetime="{{selectedDate}}">{{selectedDate}}</time>.</p>
         <p class="page-hero__timezone">Match dates use {{timezone}}.</p>
     </div>
 
@@ -16,8 +16,8 @@
 <section class="tips-panel" aria-labelledby="tips-heading">
     <div class="tips-toolbar">
         <div>
-            <h2 id="tips-heading">Published Tips</h2>
-            <p class="muted">Only selections attached to currently published slips are shown.</p>
+            <h2 id="tips-heading">Published Slip Selections</h2>
+            <p class="muted">Wachimba Odds primarily publishes slips; this secondary view only shows selections attached to currently published slips.</p>
         </div>
 
         <div class="result-tabs" role="list" aria-label="Result filters">
@@ -30,13 +30,13 @@
     </div>
 
     <div class="summary-bar" id="tips-summary" aria-live="polite">
-        <span>Loading tips...</span>
+        <span>Loading selections...</span>
     </div>
 
-    <div class="state-message" id="tips-loading" aria-busy="true">Loading tips...</div>
-    <div class="state-message is-hidden" id="tips-empty">No tips have been published for this date yet.</div>
+    <div class="state-message" id="tips-loading" aria-busy="true">Loading selections...</div>
+    <div class="state-message is-hidden" id="tips-empty">No selections are visible for this date yet.</div>
     <div class="state-message state-message--error is-hidden" id="tips-error">
-        <span>Tips could not be loaded right now.</span>
+        <span>Selections could not be loaded right now.</span>
         <button class="btn-link" type="button" id="tips-retry">Try again</button>
     </div>
 

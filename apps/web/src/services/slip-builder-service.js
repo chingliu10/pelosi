@@ -1,4 +1,5 @@
 import pool from '../db/postgres.js';
+import { todayInAppTimezone } from '../config/app-timezone.js';
 import { findDataSourceByCode } from '../repositories/data-source-repository.js';
 import { findSportByCode } from '../repositories/sport-repository.js';
 import { upsertCompetition } from '../repositories/competition-repository.js';
@@ -112,7 +113,7 @@ export async function saveBuilderSlip(req, data = {}, options = {}) {
             const original = builder.selections[index];
             const tip = await upsertResolvedSelectionTip(resolved, client);
 
-            if (String(tip.reused ? tip.row.id : '') === String(tip.row.id) && tip.reused) {
+            if (tip.reused) {
                 reusedTipIds.push(Number(tip.row.id));
             } else {
                 createdTipIds.push(Number(tip.row.id));
@@ -134,7 +135,7 @@ export async function saveBuilderSlip(req, data = {}, options = {}) {
         const slip = await createSlipRecord(
             {
                 title: normalizeTitle(data.title),
-                slipDate: new Date().toISOString().slice(0, 10),
+                slipDate: todayInAppTimezone(now),
                 totalOdds,
                 stakeUnits: 1,
                 creationType: 'manual'
