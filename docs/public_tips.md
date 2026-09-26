@@ -1,6 +1,6 @@
 # Public Tips API
 
-This is a secondary selection-level API. Wachimba Odds primarily publishes
+This is a secondary selection-level API. PELOSI primarily publishes
 slips: a slip is the customer betting product, and a tip is one individual
 selection/leg inside a slip.
 

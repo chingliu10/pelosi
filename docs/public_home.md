@@ -1,8 +1,6 @@
 # Public Homepage
 
-`GET /` is the Wachimba Odds public homepage. Pelosi remains the internal
-platform/backend/repository name; Wachimba Odds is the customer-facing product
-brand used by the page.
+`GET /` is the PELOSI public homepage.
 
 ## Sections
 
@@ -38,7 +36,7 @@ API response.
 - No admin API requests.
 - No internal `/api/v1/slips` or `/api/v1/tips` calls from the browser.
 - No fake slips or placeholder performance values.
-- Public copy uses Wachimba Odds, not Pelosi, as the customer-facing brand.
+- Public copy uses PELOSI as the customer-facing brand.
 - The page avoids guarantee language such as sure bets, risk-free claims or
   guaranteed winners.
 

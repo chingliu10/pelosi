@@ -9,7 +9,7 @@ GET /api/v1/public/slips
 GET /api/v1/public/slips/:id
 ```
 
-`GET /` renders the Wachimba Odds homepage; `GET /tips` redirects to `/slips`.
+`GET /` renders the PELOSI homepage; `GET /tips` redirects to `/slips`.
 The public navigation also links to [`/performance`](./public_performance_history.md)
 and [`/history`](./public_performance_history.md).
 

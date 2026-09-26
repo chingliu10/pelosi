@@ -1,6 +1,6 @@
 # Admin UI — Create Tip From TrueOdds
 
-The first admin screen of Wachimba Odds: search TrueOdds, pick a match, pick one
+The first admin screen of PELOSI: search TrueOdds, pick a match, pick one
 outcome and import it into Pelosi as a real pending tip.
 
 ```text
@@ -103,7 +103,7 @@ clicking.
   `aria-live="polite"` feedback areas, `role="tablist"` market tabs,
   `aria-pressed` selection buttons, `aria-busy` while searching, visible focus
   rings and a skip link.
-- Styling follows the Wachimba Odds direction: white surfaces, hairline gray
+- Styling follows the PELOSI direction: white surfaces, hairline gray
   borders, 12px card radius, minimal shadow, near-black text, restrained
   green/amber/red only for status.
 

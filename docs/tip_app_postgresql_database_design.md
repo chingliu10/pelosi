@@ -2,10 +2,10 @@
 
 ## Project Naming
 
-Pelosi is the internal software platform, repository and backend name. Wachimba
-Odds is the customer-facing betting product/brand powered by Pelosi. Keep
-technical architecture, API and database references as Pelosi where appropriate;
-public website copy, page titles and customer/member UI should use Wachimba Odds.
+PELOSI is the public customer-facing product name for the website and member
+experience, as well as the internal software platform, repository and backend
+name. Database object names, internal services, developer docs, public website
+copy, page titles and customer/member UI should use PELOSI.
 
 ## Overview
 
