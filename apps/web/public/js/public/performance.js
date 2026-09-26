@@ -1,7 +1,7 @@
 (() => {
     'use strict';
 
-    const ui = window.WachimbaPublicUI;
+    const ui = window.PelosiPublicUI;
     const ranges = [
         { key: 'all', label: 'All time' },
         { key: '7d', label: '7 days' },

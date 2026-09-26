@@ -119,6 +119,10 @@ export function redirectToSlip(req, res) {
     res.redirect(302, `/admin/slips?slip=${slipId}`);
 }
 
+export function redirectToDraftSlips(req, res) {
+    res.redirect(302, '/admin/slips?publicationStatus=draft');
+}
+
 export async function renderSettlementPage(req, res, next) {
     try {
         const user = await currentUser(createSessionContext(req));

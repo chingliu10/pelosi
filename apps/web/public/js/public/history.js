@@ -1,7 +1,7 @@
 (() => {
     'use strict';
 
-    const ui = window.WachimbaPublicUI;
+    const ui = window.PelosiPublicUI;
     const params = new URLSearchParams(window.location.search);
     const allowedResults = ['all', 'won', 'lost', 'void', 'pending'];
     const state = {

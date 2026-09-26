@@ -1,7 +1,7 @@
 (() => {
     'use strict';
 
-    const ui = window.WachimbaPublicUI;
+    const ui = window.PelosiPublicUI;
     const els = {
         snapshotSlips: document.getElementById('home-snapshot-slips'),
         snapshotProfit: document.getElementById('home-snapshot-profit'),

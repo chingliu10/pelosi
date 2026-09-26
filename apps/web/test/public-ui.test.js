@@ -41,8 +41,8 @@ test('GET / renders the public homepage and /tips redirects to /slips', async ()
 
     assert.equal(home.status, 200);
     assert.equal(home.location, null);
-    assert.match(home.text, /<title>Football Betting Slips &amp; Performance \| Wachimba Odds<\/title>/);
-    assert.match(home.text, /href="\/" aria-label="Wachimba Odds home"/);
+    assert.match(home.text, /<title>Football Betting Slips &amp; Performance \| PELOSI<\/title>/);
+    assert.match(home.text, /href="\/" aria-label="PELOSI home"/);
     assert.match(home.text, /aria-current="page">Home<\/a>/);
     assert.match(home.text, /Smarter football selections/);
     assert.match(home.text, /href="\/slips">View Today(?:'|&#x27;)s Slips<\/a>/);
@@ -50,12 +50,12 @@ test('GET / renders the public homepage and /tips redirects to /slips', async ()
     assert.match(home.text, /id="home-slips-grid"/);
     assert.match(home.text, /id="home-performance-metrics"/);
     assert.match(home.text, /id="home-history-list"/);
-    assert.match(home.text, /How Wachimba Odds Works/);
+    assert.match(home.text, /How PELOSI Works/);
     assert.match(home.text, /Transparent by design/);
     assert.equal(tips.status, 302);
     assert.equal(tips.location, '/slips');
     assert.equal(slips.status, 200);
-    assert.match(slips.text, /<title>Today&#x27;s Slips \| Wachimba Odds<\/title>/);
+    assert.match(slips.text, /<title>Today&#x27;s Slips \| PELOSI<\/title>/);
     assert.match(slips.text, /class="site-header"/);
     assert.match(slips.text, /Today's Slips/);
     assert.match(slips.text, /aria-current="page">Today&#x27;s Slips<\/a>/);
@@ -80,7 +80,7 @@ test('GET /performance renders the public performance shell with active navigati
     const response = await request('/performance?range=30d');
 
     assert.equal(response.status, 200);
-    assert.match(response.text, /<title>Performance \| Wachimba Odds<\/title>/);
+    assert.match(response.text, /<title>Performance \| PELOSI<\/title>/);
     assert.match(response.text, /aria-current="page">Performance<\/a>/);
     assert.match(response.text, /id="performance-metrics"/);
     assert.match(response.text, /id="trend-chart"/);
@@ -94,7 +94,7 @@ test('GET /history renders the public history shell with active navigation', asy
     const response = await request('/history?result=won');
 
     assert.equal(response.status, 200);
-    assert.match(response.text, /<title>History \| Wachimba Odds<\/title>/);
+    assert.match(response.text, /<title>History \| PELOSI<\/title>/);
     assert.match(response.text, /aria-current="page">History<\/a>/);
     assert.match(response.text, /id="history-list"/);
     assert.match(response.text, /id="history-pager"/);

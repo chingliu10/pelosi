@@ -178,7 +178,7 @@
                 hint: summary.draftSlips === 0
                     ? 'No draft slips. Build a slip from pending tips.'
                     : 'Slips waiting to be published',
-                href: '/admin/slips?publicationStatus=draft',
+                href: '/admin/slips/unpublished',
                 linkLabel: 'View slips',
                 failed: state.data?.errors?.draftSlips
             },
@@ -243,7 +243,7 @@
         if (Number(summary.draftSlips) > 0) {
             items.push({
                 text: `${summary.draftSlips} draft slip${summary.draftSlips === 1 ? '' : 's'} waiting for publication`,
-                href: '/admin/slips?publicationStatus=draft',
+                href: '/admin/slips/unpublished',
                 label: 'View'
             });
         }

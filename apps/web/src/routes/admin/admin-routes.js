@@ -8,6 +8,7 @@ import {
     renderSettlementPage,
     renderSlipBuilderPage,
     renderSlipsPage,
+    redirectToDraftSlips,
     renderTipsPage,
     redirectToSlip
 } from '../../controllers/admin-page-controller.js';
@@ -28,6 +29,8 @@ router.get('/tips/new', requireAdminPage, renderCreateTipPage);
 
 router.get('/slips', requireAdminPage, renderSlipsPage);
 router.get('/slips/new', requireAdminPage, renderSlipBuilderPage);
+router.get('/slips/drafts', requireAdminPage, redirectToDraftSlips);
+router.get('/slips/unpublished', requireAdminPage, redirectToDraftSlips);
 router.get('/slips/:id', requireAdminPage, redirectToSlip);
 
 router.get('/settlement', requireAdminPage, renderSettlementPage);

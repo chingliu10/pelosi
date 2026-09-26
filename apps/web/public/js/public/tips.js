@@ -4,7 +4,7 @@
     // Secondary/future selection-level surface. The public /tips route currently
     // redirects to /slips; keep this script aligned with the safe public tips API
     // for later selection history/detail work.
-    const page = window.WachimbaTipsPage || {};
+    const page = window.PelosiTipsPage || {};
     const params = new URLSearchParams(window.location.search);
     const selectedDate = params.get('date') || page.selectedDate;
     const selectedResult = normalizeResult(params.get('result') || 'all');

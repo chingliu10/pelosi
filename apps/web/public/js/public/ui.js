@@ -1,4 +1,4 @@
-window.WachimbaPublicUI = (() => {
+window.PelosiPublicUI = (() => {
     'use strict';
 
     const placeholder = '-';

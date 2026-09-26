@@ -169,7 +169,7 @@ test('the create tip page renders the full workflow shell', async () => {
     assert.match(response.contentType, /text\/html/);
 
     // Page header
-    assert.ok(response.text.includes('<title>Create tip · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Create tip · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Create tip'));
     assert.ok(response.text.includes('Search TrueOdds, choose a match and import one betting selection.'));
 
@@ -282,7 +282,7 @@ test('the tips manager renders with its header, action and panels', async () => 
 
     assert.equal(response.status, 200);
     assert.match(response.contentType, /text\/html/);
-    assert.ok(response.text.includes('<title>Tips · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Tips · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Review imported predictions and their settlement status.'));
     assert.ok(response.text.includes('+ Create tip'));
     assert.ok(response.text.includes('href="/admin/tips/new"'));
@@ -396,11 +396,14 @@ test('the create tip success panel links to the tips manager', async () => {
 test('anonymous browsers are redirected from the slip screens to sign in', async () => {
     const builder = await request('/admin/slips/new');
     const manager = await request('/admin/slips');
+    const unpublished = await request('/admin/slips/unpublished');
 
     assert.equal(builder.status, 302);
     assert.equal(builder.location, '/admin/login?next=%2Fadmin%2Fslips%2Fnew');
     assert.equal(manager.status, 302);
     assert.equal(manager.location, '/admin/login?next=%2Fadmin%2Fslips');
+    assert.equal(unpublished.status, 302);
+    assert.equal(unpublished.location, '/admin/login?next=%2Fadmin%2Fslips%2Funpublished');
 });
 
 test('the slip manager renders with its header, filters and detail panel', async () => {
@@ -409,7 +412,7 @@ test('the slip manager renders with its header, filters and detail panel', async
 
     assert.equal(response.status, 200);
     assert.match(response.contentType, /text\/html/);
-    assert.ok(response.text.includes('<title>Slips · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Slips · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Review, publish and manage betting slips.'));
     assert.ok(response.text.includes('+ Build slip'));
     assert.ok(response.text.includes('href="/admin/slips/new"'));
@@ -428,7 +431,7 @@ test('the slip builder renders the TrueOdds search and temporary slip panels', a
     const response = await request('/admin/slips/new', { jar });
 
     assert.equal(response.status, 200);
-    assert.ok(response.text.includes('<title>Build slip · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Build slip · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Search TrueOdds, add selections to your slip, then save a draft.'));
     assert.ok(response.text.includes('id="builder-search-input"'));
     assert.ok(response.text.includes('id="builder-results-card"'));
@@ -451,6 +454,17 @@ test('/admin/slips/:id deep-links into the manager', async () => {
 
     assert.equal(invalid.status, 302);
     assert.equal(invalid.location, '/admin/slips');
+});
+
+test('/admin/slips/unpublished opens the draft slip filter', async () => {
+    const jar = await signedInJar();
+    const unpublished = await request('/admin/slips/unpublished', { jar });
+    const drafts = await request('/admin/slips/drafts', { jar });
+
+    assert.equal(unpublished.status, 302);
+    assert.equal(unpublished.location, '/admin/slips?publicationStatus=draft');
+    assert.equal(drafts.status, 302);
+    assert.equal(drafts.location, '/admin/slips?publicationStatus=draft');
 });
 
 test('the Slips nav item is functional and active on every slip screen', async () => {
@@ -593,7 +607,7 @@ test('the settlement monitor renders its queue and result panels', async () => {
 
     assert.equal(response.status, 200);
     assert.match(response.contentType, /text\/html/);
-    assert.ok(response.text.includes('<title>Settlement · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Settlement · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Review pending match results and settle tips and slips safely.'));
     assert.ok(response.text.includes('id="queue-list"'));
     assert.ok(response.text.includes('id="queue-empty"'));
@@ -728,7 +742,7 @@ test('the performance screen renders its metrics, chart, breakdown and recent se
 
     assert.equal(response.status, 200);
     assert.match(response.contentType, /text\/html/);
-    assert.ok(response.text.includes('<title>Performance · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Performance · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Track published betting results, profit and ROI.'));
     assert.ok(response.text.includes('id="performance-range"'));
     assert.ok(response.text.includes('id="metric-cards"'));
@@ -882,7 +896,7 @@ test('the dashboard renders its summary, attention, actions and activity section
 
     assert.equal(response.status, 200);
     assert.match(response.contentType, /text\/html/);
-    assert.ok(response.text.includes('<title>Dashboard · Wachimba Odds Admin</title>'));
+    assert.ok(response.text.includes('<title>Dashboard · PELOSI Admin</title>'));
     assert.ok(response.text.includes('Overview of your betting operation.'));
     assert.ok(response.text.includes('id="summary-cards"'));
     assert.ok(response.text.includes('Needs attention'));
@@ -919,7 +933,7 @@ test('the dashboard script consumes one aggregated API and links to every workfl
 
     for (const href of [
         '/admin/tips?result=pending',
-        '/admin/slips?publicationStatus=draft',
+        '/admin/slips/unpublished',
         '/admin/settlement',
         '/admin/slips?publicationStatus=published',
         '/admin/performance',

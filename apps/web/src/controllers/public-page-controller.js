@@ -11,7 +11,7 @@ export function renderHomePage(req, res, next) {
         res.render('public/home', {
             layout: 'public',
             pageTitle: 'Football Betting Slips & Performance',
-            metaDescription: 'Wachimba Odds publishes football betting slips with transparent historical performance and results.',
+            metaDescription: 'PELOSI publishes football betting slips with transparent historical performance and results.',
             pageScripts: ['/js/public/site.js', '/js/public/ui.js', '/js/public/home.js'],
             nav: buildNav('home')
         });
